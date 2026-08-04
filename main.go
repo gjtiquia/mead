@@ -102,10 +102,10 @@ type Options struct {
 type Category int
 
 const (
-	catNone Category = iota
-	catPhoto
-	catVideoModern
-	catVideoAVI
+	categoryNone Category = iota
+	categoryPhoto
+	categoryVideoModern
+	categoryVideoAVI
 )
 
 type fileTask struct {
@@ -193,9 +193,9 @@ func run(opts Options, stdout io.Writer) error {
 		var ferr error
 		if !opts.DryRun {
 			switch ft.cat {
-			case catPhoto, catVideoModern:
+			case categoryPhoto, categoryVideoModern:
 				ferr = writePhotoModern(etool, ft.path, t)
-			case catVideoAVI:
+			case categoryVideoAVI:
 				ferr = writeAVI(etool, ftool, ft.path, t)
 			}
 		}
@@ -332,13 +332,13 @@ func sequence(base time.Time, n, inc int) []time.Time {
 func classifyExt(name string) (Category, bool) {
 	switch ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), ".")); ext {
 	case "jpg", "jpeg", "png", "heic", "tif", "tiff", "gif":
-		return catPhoto, true
+		return categoryPhoto, true
 	case "mp4", "m4v", "mov":
-		return catVideoModern, true
+		return categoryVideoModern, true
 	case "avi":
-		return catVideoAVI, true
+		return categoryVideoAVI, true
 	}
-	return catNone, false
+	return categoryNone, false
 }
 
 func photoCmd(exif, file string, t time.Time) []string {
@@ -381,9 +381,9 @@ func writeAVI(exif, ffmpeg, file string, t time.Time) error {
 
 func planFile(exif, ffmpeg string, ft fileTask, t time.Time) []string {
 	switch ft.cat {
-	case catPhoto, catVideoModern:
+	case categoryPhoto, categoryVideoModern:
 		return []string{cmdLine(photoCmd(exif, ft.path, t))}
-	case catVideoAVI:
+	case categoryVideoAVI:
 		var cmds []string
 		for _, argv := range aviCmds(exif, ffmpeg, ft.path, t) {
 			cmds = append(cmds, cmdLine(argv))
@@ -397,11 +397,11 @@ func cmdLine(argv []string) string { return strings.Join(argv, " ") }
 
 func desc(cat Category) string {
 	switch cat {
-	case catPhoto:
+	case categoryPhoto:
 		return "DateTimeOriginal"
-	case catVideoModern:
+	case categoryVideoModern:
 		return "AllDates"
-	case catVideoAVI:
+	case categoryVideoAVI:
 		return "fs + ICRD"
 	}
 	return ""
