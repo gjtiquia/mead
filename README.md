@@ -4,8 +4,9 @@
 
 Fix media capture times so files appear in chronological order in Google Photos.
 
-Camera files have unreliable embedded datetimes. `mead` sequences every file in a
-folder by filename and writes the correct timestamp per media type:
+Camera files have unreliable embedded datetimes. `mead` sequences every file in the
+current folder (or a given `dir`) by filename and writes the correct timestamp per
+media type:
 
 - **Photos** (JPG/PNG/HEIC/TIFF/GIF) and **modern video** (MP4/MOV/M4V) → embedded
   EXIF date via `exiftool`
@@ -22,11 +23,13 @@ go install .
 ## Usage
 
 ```
-mead <dir> <base_time> [flags]
-mead                     # interactive prompts
+mead <base_time> [dir]
+mead                    # interactive prompts
 ```
 
-First file gets `base_time` exactly; each next file gets `base_time + i·inc` seconds.
+Operates on the current folder by default; pass an optional `dir` to target another
+folder without `cd`-ing. First file gets `base_time` exactly; each next file gets
+`base_time + i·inc` seconds.
 
 ### Flags
 
@@ -45,14 +48,14 @@ Long flags are double-dash only: use `--dry-run`, not `-dry-run`.
 ### Examples
 
 ```
-# dry-run first
-mead --dry-run ~/shoots/0900-apple "2026:08:03 09:00:00-04:00"
+# dry-run first (run inside the shoot folder)
+cd ~/shoots/0900-apple && mead --dry-run "2026:08:03 09:00:00-04:00"
 
-# for real
-mead ~/shoots/0900-apple "2026:08:03 09:00:00-04:00"
+# or point at the folder directly
+mead "2026:08:03 09:00:00-04:00" ~/shoots/0900-apple
 
 # 30s apart instead of 1s
-mead --inc 30 ~/shoots/1700-bnb "2026-08-03 17:00:00"
+cd ~/shoots/1700-bnb && mead --inc 30 "2026-08-03 17:00:00"
 
 # unknown extensions are reported as UNKNOWN warnings and left alone
 ```

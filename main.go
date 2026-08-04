@@ -39,7 +39,7 @@ func runMain(args []string) int {
 	fs.Usage = func() {
 		w := fs.Output()
 		fmt.Fprintln(w, "mead — media date-fixer")
-		fmt.Fprintln(w, "usage: mead <dir> <base_time> [flags]")
+		fmt.Fprintln(w, "usage: mead <base_time> [dir] [flags]")
 		fmt.Fprintln(w, "       mead   (interactive prompts)")
 		fs.PrintDefaults()
 	}
@@ -56,23 +56,25 @@ func runMain(args []string) int {
 		return 0
 	}
 
-	opts := Options{Inc: *inc, TZ: *tz, DryRun: *dryRun}
+	opts := Options{Dir: ".", Inc: *inc, TZ: *tz, DryRun: *dryRun}
 	switch rest := fs.Args(); len(rest) {
 	case 0:
 		if err := promptInteractive(&opts); err != nil {
 			fmt.Fprintln(os.Stderr, "mead:", err)
 			return 2
 		}
+	case 1:
+		opts.BaseTime = rest[0]
 	case 2:
-		opts.Dir = rest[0]
-		opts.BaseTime = rest[1]
+		opts.BaseTime = rest[0]
+		opts.Dir = rest[1]
 		if info, err := os.Stat(opts.Dir); err != nil || !info.IsDir() {
 			fmt.Fprintf(os.Stderr, "mead: bad dir: %s\n", opts.Dir)
 			fs.Usage()
 			return 2
 		}
 	default:
-		fmt.Fprintln(os.Stderr, "mead: usage: mead <dir> <base_time> [flags]")
+		fmt.Fprintln(os.Stderr, "mead: usage: mead <base_time> [dir] [flags]")
 		fs.Usage()
 		return 2
 	}
@@ -220,14 +222,6 @@ func run(opts Options, stdout io.Writer) error {
 
 func promptInteractive(opts *Options) error {
 	sc := bufio.NewScanner(os.Stdin)
-	dir, ok := prompt(sc, "dir", ".")
-	if !ok {
-		return fmt.Errorf("aborted")
-	}
-	opts.Dir = dir
-	if fi, err := os.Stat(opts.Dir); err != nil || !fi.IsDir() {
-		return fmt.Errorf("bad dir: %s", opts.Dir)
-	}
 	for {
 		b, ok := prompt(sc, "base_time", "")
 		if !ok {

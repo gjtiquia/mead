@@ -46,21 +46,23 @@ func TestRunMainExitCodes(t *testing.T) {
 	}{
 		{"help_short", []string{"-h"}, basePATH, 0},
 		{"help_long", []string{"--help"}, basePATH, 0},
-		{"missing_base_time", []string{dir}, basePATH, 2},
-		{"too_many_args", []string{dir, goodBase, "extra"}, basePATH, 2},
-		{"bad_inc", []string{dir, goodBase, "--inc", "-1"}, withStubs, 2},
-		{"bad_tz", []string{dir, goodBase, "--tz", "Bogus/Zone"}, withStubs, 2},
-		{"missing_dir", []string{missingDir, goodBase}, basePATH, 2},
-		{"flags_after_positionals", []string{dir, goodBase, "--dry-run"}, withStubs, 0},
-		{"flag_between_positionals", []string{dir, "--inc", "30", goodBase}, withStubs, 0},
-		{"flag_equals_form", []string{dir, goodBase, "--inc=30"}, withStubs, 0},
-		{"double_dash_separator", []string{"--", dir, goodBase}, withStubs, 0},
-		{"unknown_flag", []string{dir, goodBase, "--bogus"}, withStubs, 2},
-		{"single_dash_long_flag", []string{dir, goodBase, "-dry-run"}, withStubs, 2},
-		{"passing", []string{dir, goodBase}, withStubs, 0},
+		{"bad_base_time", []string{"not-a-time"}, basePATH, 2},
+		{"too_many_args", []string{goodBase, "extra"}, basePATH, 2},
+		{"bad_inc", []string{goodBase, "--inc", "-1"}, withStubs, 2},
+		{"bad_tz", []string{goodBase, "--tz", "Bogus/Zone"}, withStubs, 2},
+		{"bad_dir", []string{goodBase, missingDir}, basePATH, 2},
+		{"dir_defaults_to_dot", []string{goodBase}, withStubs, 0},
+		{"dir_override", []string{goodBase, "."}, withStubs, 0},
+		{"flags_after_positionals", []string{goodBase, "--dry-run"}, withStubs, 0},
+		{"flag_between_positionals", []string{"--inc", "30", goodBase}, withStubs, 0},
+		{"flag_equals_form", []string{goodBase, "--inc=30"}, withStubs, 0},
+		{"double_dash_separator", []string{"--", goodBase}, withStubs, 0},
+		{"unknown_flag", []string{goodBase, "--bogus"}, withStubs, 2},
+		{"single_dash_long_flag", []string{goodBase, "-dry-run"}, withStubs, 2},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Chdir(dir)
 			t.Setenv("PATH", tc.path)
 			newLog(t)
 			got := runMain(tc.args)
