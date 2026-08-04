@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -15,56 +14,35 @@ import (
 )
 
 func TestRunMainExitCodes(t *testing.T) {
-	stubsDir, err := filepath.Abs("testdata/stubs")
-	if err != nil {
-		t.Fatalf("abs stubs: %v", err)
-	}
-	basePATH := os.Getenv("PATH")
-	withStubs := stubsDir + string(os.PathListSeparator) + basePATH
-
 	dir := t.TempDir()
-	writeFile(t, dir, "IMG_0001.JPG")
+	corpusPhoto(t, dir, "IMG_0001.JPG")
 	goodBase := "2026:08:03 09:00:00-04:00"
 	missingDir := filepath.Join(dir, "does-not-exist")
-
-	newLog := func(t *testing.T) string {
-		f, err := os.CreateTemp("", "mead-stub-log-*")
-		if err != nil {
-			t.Fatalf("temp log: %v", err)
-		}
-		p := f.Name()
-		f.Close()
-		t.Setenv("MEAD_STUB_LOG", p)
-		return p
-	}
 
 	tests := []struct {
 		name string
 		args []string
-		path string
 		want int
 	}{
-		{"help_short", []string{"-h"}, basePATH, 0},
-		{"help_long", []string{"--help"}, basePATH, 0},
-		{"bad_base_time", []string{"not-a-time"}, basePATH, 2},
-		{"too_many_args", []string{goodBase, "extra"}, basePATH, 2},
-		{"bad_inc", []string{goodBase, "--inc", "-1"}, withStubs, 2},
-		{"bad_tz", []string{goodBase, "--tz", "Bogus/Zone"}, withStubs, 2},
-		{"bad_dir", []string{goodBase, missingDir}, basePATH, 2},
-		{"dir_defaults_to_dot", []string{goodBase}, withStubs, 0},
-		{"dir_override", []string{goodBase, "."}, withStubs, 0},
-		{"flags_after_positionals", []string{goodBase, "--dry-run"}, withStubs, 0},
-		{"flag_between_positionals", []string{"--inc", "30", goodBase}, withStubs, 0},
-		{"flag_equals_form", []string{goodBase, "--inc=30"}, withStubs, 0},
-		{"double_dash_separator", []string{"--", goodBase}, withStubs, 0},
-		{"unknown_flag", []string{goodBase, "--bogus"}, withStubs, 2},
-		{"single_dash_long_flag", []string{goodBase, "-dry-run"}, withStubs, 2},
+		{"help_short", []string{"-h"}, 0},
+		{"help_long", []string{"--help"}, 0},
+		{"bad_base_time", []string{"not-a-time"}, 2},
+		{"too_many_args", []string{goodBase, "extra"}, 2},
+		{"bad_inc", []string{goodBase, "--inc", "-1"}, 2},
+		{"bad_tz", []string{goodBase, "--tz", "Bogus/Zone"}, 2},
+		{"bad_dir", []string{goodBase, missingDir}, 2},
+		{"dir_defaults_to_dot", []string{goodBase}, 0},
+		{"dir_override", []string{goodBase, "."}, 0},
+		{"flags_after_positionals", []string{goodBase, "--dry-run"}, 0},
+		{"flag_between_positionals", []string{"--inc", "30", goodBase}, 0},
+		{"flag_equals_form", []string{goodBase, "--inc=30"}, 0},
+		{"double_dash_separator", []string{"--", goodBase}, 0},
+		{"unknown_flag", []string{goodBase, "--bogus"}, 2},
+		{"single_dash_long_flag", []string{goodBase, "-dry-run"}, 2},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Chdir(dir)
-			t.Setenv("PATH", tc.path)
-			newLog(t)
 			got := runMain(tc.args)
 			if got != tc.want {
 				t.Fatalf("runMain(%v) = %d, want %d", tc.args, got, tc.want)
@@ -90,7 +68,7 @@ func TestMead_Corpus(t *testing.T) {
 		}
 	}
 	if aviOnly == nil {
-		t.Skip("no avi-only shoot in corpus")
+		t.Fatalf("no avi-only shoot in corpus")
 	}
 	t.Run("dry_run_no_mutation", func(t *testing.T) {
 		for _, s := range shoots {
@@ -133,6 +111,12 @@ func TestMead_Corpus(t *testing.T) {
 				if strings.Contains(out, "UNKNOWN") {
 					t.Fatalf("dry-run report has UNKNOWN: %s", out)
 				}
+				if !strings.Contains(out, "dry-run=yes") {
+					t.Fatalf("dry-run report missing dry-run=yes: %s", out)
+				}
+				if !strings.Contains(out, "exiftool -overwrite_original") {
+					t.Fatalf("dry-run report missing command preview: %s", out)
+				}
 			})
 		}
 	})
@@ -147,7 +131,7 @@ func TestMead_Corpus(t *testing.T) {
 		var avis []string
 		for _, e := range entries {
 			if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-				if cat, _ := classifyExt(e.Name()); cat == catVideoAVI {
+				if cat, _ := classifyExt(e.Name()); cat == categoryVideoAVI {
 					avis = append(avis, e.Name())
 				}
 			}
@@ -208,7 +192,7 @@ func TestMead_Corpus(t *testing.T) {
 
 	t.Run("mixed", func(t *testing.T) {
 		if mixed == nil {
-			t.Skip("no mixed shoot in corpus")
+			t.Fatalf("no mixed shoot in corpus")
 		}
 		tmp := copyShootToTmp(t, *mixed)
 		loc, _ := resolveTZ("-04:00")
@@ -235,13 +219,13 @@ func TestMead_Corpus(t *testing.T) {
 			want := base.Add(time.Duration(i*inc) * time.Second)
 			var got time.Time
 			switch cat {
-			case catVideoAVI:
+			case categoryVideoAVI:
 				f, err := probeField(p, "FileModifyDate")
 				if err != nil {
 					t.Fatalf("probe %s: %v", n, err)
 				}
 				got, _ = parseExifTime(f["FileModifyDate"], loc)
-			case catPhoto:
+			case categoryPhoto:
 				f, err := probeField(p, "DateTimeOriginal")
 				if err != nil {
 					t.Fatalf("probe %s: %v", n, err)
@@ -289,10 +273,10 @@ func TestMead_Corpus(t *testing.T) {
 					cat, _ := classifyExt(n)
 					var got time.Time
 					switch cat {
-					case catVideoAVI:
+					case categoryVideoAVI:
 						f, _ := probeField(p, "FileModifyDate")
 						got, _ = parseExifTime(f["FileModifyDate"], loc)
-					case catPhoto:
+					case categoryPhoto:
 						f, _ := probeField(p, "DateTimeOriginal")
 						got, _ = parseExifTime(f["DateTimeOriginal"], loc)
 					}
@@ -311,7 +295,7 @@ func TestMead_Corpus(t *testing.T) {
 
 	t.Run("unknown_extension", func(t *testing.T) {
 		if mixed == nil {
-			t.Skip("no mixed shoot")
+			t.Fatalf("no mixed shoot in corpus")
 		}
 		tmp := copyShootToTmp(t, *mixed)
 		readmePath := filepath.Join(tmp, "README.txt")
@@ -336,6 +320,41 @@ func TestMead_Corpus(t *testing.T) {
 			t.Fatalf("README.txt mutated on disk")
 		}
 	})
+
+	t.Run("error_continues", func(t *testing.T) {
+		dir := t.TempDir()
+		garbage := writeFile(t, dir, "A.JPG", "not an image")
+		corpusPhoto(t, dir, "B.JPG")
+
+		buf := &bytes.Buffer{}
+		err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf)
+		if err == nil {
+			t.Fatalf("run with a failing file should error:\n%s", buf.String())
+		}
+		out := buf.String()
+		if !strings.Contains(out, "ERROR    A.JPG") {
+			t.Fatalf("report missing ERROR for A.JPG:\n%s", out)
+		}
+		if !strings.Contains(out, "CHANGED  B.JPG") {
+			t.Fatalf("report missing CHANGED for B.JPG (loop must continue past error):\n%s", out)
+		}
+		fields, err := probeField(filepath.Join(dir, "B.JPG"), "DateTimeOriginal")
+		if err != nil {
+			t.Fatalf("probe B.JPG: %v", err)
+		}
+		loc, _ := resolveTZ("-04:00")
+		got, e := parseExifTime(fields["DateTimeOriginal"], loc)
+		if e != nil {
+			t.Fatalf("parse DateTimeOriginal %q: %v", fields["DateTimeOriginal"], e)
+		}
+		want, _ := parseBaseTime("2026:08:03 09:00:00-04:00", loc)
+		if !got.Equal(want) {
+			t.Fatalf("B.JPG date = %v, want %v", got, want)
+		}
+		if _, err := os.Stat(garbage); err != nil {
+			t.Fatalf("garbage A.JPG removed: %v", err)
+		}
+	})
 }
 
 type shoot struct {
@@ -345,15 +364,10 @@ type shoot struct {
 
 func corpusSrc(t *testing.T) string {
 	t.Helper()
+	requireTools(t)
 	src := filepath.Join("..", "2026-08-montreal-import", "2026-08-03")
 	if fi, err := os.Stat(src); err != nil || !fi.IsDir() {
-		t.Skipf("montreal corpus not present at %s", src)
-	}
-	if _, err := exec.LookPath("exiftool"); err != nil {
-		t.Skipf("mead: missing required dependency: exiftool\ninstall with:  brew install exiftool ffmpeg")
-	}
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skipf("mead: missing required dependency: ffmpeg\ninstall with:  brew install exiftool ffmpeg")
+		t.Fatalf("corpus not present at %s", src)
 	}
 	return src
 }
@@ -362,7 +376,7 @@ func discoverShoots(t *testing.T, src string) []shoot {
 	t.Helper()
 	entries, err := os.ReadDir(src)
 	if err != nil {
-		t.Skipf("cannot read corpus dir: %v", err)
+		t.Fatalf("cannot read corpus dir: %v", err)
 	}
 	var shoots []shoot
 	for _, e := range entries {
@@ -373,7 +387,7 @@ func discoverShoots(t *testing.T, src string) []shoot {
 	}
 	sort.Slice(shoots, func(i, j int) bool { return shoots[i].name < shoots[j].name })
 	if len(shoots) == 0 {
-		t.Skip("no shoots in corpus")
+		t.Fatalf("no shoots in corpus %s", src)
 	}
 	return shoots
 }
@@ -390,9 +404,9 @@ func classifyShoot(t *testing.T, s shoot) (aviOnly, mixed bool) {
 		}
 		cat, _ := classifyExt(e.Name())
 		switch cat {
-		case catVideoAVI:
+		case categoryVideoAVI:
 			hasAVI = true
-		case catPhoto, catVideoModern:
+		case categoryPhoto, categoryVideoModern:
 			hasOther = true
 		}
 	}
@@ -483,207 +497,136 @@ func parseExifTime(s string, loc *time.Location) (time.Time, error) {
 	return time.ParseInLocation(layoutColon, s, loc)
 }
 
-func TestStubbedPhotoArgs(t *testing.T) {
-	logPath := stubEnv(t)
-	dir := t.TempDir()
-	writeFile(t, dir, "IMG_0001.JPG")
-
-	buf := &bytes.Buffer{}
-	err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf)
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	log := readStubLog(t, logPath)
-	if len(log) != 1 {
-		t.Fatalf("want 1 stub call, got %d: %v", len(log), log)
-	}
-	args := log[0]
-	if len(args) != 4 {
-		t.Fatalf("argv len = %d, want 4: %v", len(args), args)
-	}
-	if args[0] == "" {
-		t.Fatalf("argv0 empty")
-	}
-	if args[1] != "-overwrite_original" {
-		t.Fatalf("arg1 = %q, want -overwrite_original", args[1])
-	}
-	if !strings.HasPrefix(args[2], "-AllDates=") {
-		t.Fatalf("arg2 = %q", args[2])
-	}
-	ts := strings.TrimPrefix(args[2], "-AllDates=")
-	if _, e := time.Parse(layoutColonOffset, ts); e != nil {
-		t.Fatalf("AllDates value %q not offset-timestamp: %v", ts, e)
-	}
-	if args[3] != filepath.Join(dir, "IMG_0001.JPG") {
-		t.Fatalf("arg3 = %q", args[3])
-	}
-	if !strings.Contains(buf.String(), "CHANGED  IMG_0001.JPG") {
-		t.Fatalf("report missing CHANGED line:\n%s", buf.String())
-	}
-}
-
-func TestStubbedModernVideoArgs(t *testing.T) {
-	for _, ext := range []string{"mp4", "mov"} {
-		t.Run(ext, func(t *testing.T) {
-			logPath := stubEnv(t)
-			dir := t.TempDir()
-			name := "VID_0001." + ext
-			writeFile(t, dir, name)
-			buf := &bytes.Buffer{}
-			if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf); err != nil {
-				t.Fatalf("run: %v", err)
+func TestPhotoCmd(t *testing.T) {
+	loc, _ := resolveTZ("-04:00")
+	base, _ := parseBaseTime("2026:08:03 09:00:00-04:00", loc)
+	for _, tc := range []struct {
+		name string
+		ext  string
+	}{
+		{"jpg", "IMG_0001.JPG"},
+		{"mp4", "VID_0001.mp4"},
+		{"mov", "VID_0001.mov"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			argv := photoCmd("/usr/bin/exiftool", "/tmp/dir/"+tc.ext, base)
+			if len(argv) != 4 {
+				t.Fatalf("argv len = %d, want 4: %v", len(argv), argv)
 			}
-			log := readStubLog(t, logPath)
-			if len(log) != 1 {
-				t.Fatalf("want 1 call, got %d", len(log))
+			if argv[0] != "/usr/bin/exiftool" {
+				t.Fatalf("argv0 = %q", argv[0])
 			}
-			if log[0][1] != "-overwrite_original" || !strings.HasPrefix(log[0][2], "-AllDates=") {
-				t.Fatalf("bad argv: %v", log[0])
+			if argv[1] != "-overwrite_original" {
+				t.Fatalf("argv1 = %q, want -overwrite_original", argv[1])
 			}
-			if log[0][3] != filepath.Join(dir, name) {
-				t.Fatalf("file arg mismatch: %q", log[0][3])
+			if argv[2] != "-AllDates="+base.Format(layoutColonOffset) {
+				t.Fatalf("argv2 = %q", argv[2])
+			}
+			if argv[3] != "/tmp/dir/"+tc.ext {
+				t.Fatalf("argv3 = %q", argv[3])
 			}
 		})
 	}
 }
 
-func TestStubbedAVIArgs(t *testing.T) {
-	logPath := stubEnv(t)
-	dir := t.TempDir()
-	writeFile(t, dir, "SL740083.AVI")
-
-	buf := &bytes.Buffer{}
-	if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf); err != nil {
-		t.Fatalf("run: %v", err)
+func TestAVICmds(t *testing.T) {
+	loc, _ := resolveTZ("-04:00")
+	base, _ := parseBaseTime("2026:08:03 09:00:00-04:00", loc)
+	exif := "/usr/bin/exiftool"
+	ff := "/usr/bin/ffmpeg"
+	file := "/tmp/dir/SL740083.AVI"
+	cmds := aviCmds(exif, ff, file, base)
+	if len(cmds) != 4 {
+		t.Fatalf("want 4 commands, got %d", len(cmds))
 	}
-	log := readStubLog(t, logPath)
-	if len(log) != 3 {
-		t.Fatalf("want 3 stub calls, got %d: %v", len(log), log)
+	// 1: exiftool fs dates
+	if cmds[0][0] != exif || !strings.HasPrefix(cmds[0][2], "-FileModifyDate=") || !strings.HasPrefix(cmds[0][3], "-FileCreateDate=") {
+		t.Fatalf("cmd1 = %v", cmds[0])
 	}
-	// Call 1: exiftool fs dates
-	if !strings.HasPrefix(log[0][2], "-FileModifyDate=") || !strings.HasPrefix(log[0][3], "-FileCreateDate=") {
-		t.Fatalf("call1 not fs dates: %v", log[0])
+	if cmds[0][4] != file {
+		t.Fatalf("cmd1 file arg = %q", cmds[0][4])
 	}
-	if log[0][4] != filepath.Join(dir, "SL740083.AVI") {
-		t.Fatalf("call1 file arg mismatch: %q", log[0][4])
+	// 2: ffmpeg -y -i file -c copy -metadata date=<wall> tmp
+	a := cmds[1]
+	if a[0] != ff {
+		t.Fatalf("cmd2 argv0 = %v", a)
 	}
-	// Call 2: ffmpeg -c copy -metadata date=<wall>
-	if !strings.Contains(strings.Join(log[1], " "), "-c copy") {
-		t.Fatalf("call2 not stream copy: %v", log[1])
+	if !strings.Contains(strings.Join(a, " "), "-c copy") {
+		t.Fatalf("cmd2 not stream copy: %v", a)
 	}
-	var dateVal, outPath string
-	a := log[1]
+	var dateVal string
 	for i := 0; i < len(a); i++ {
 		if strings.HasPrefix(a[i], "date=") {
 			dateVal = strings.TrimPrefix(a[i], "date=")
 		}
 	}
-	outPath = a[len(a)-1]
-	if dateVal == "" {
-		t.Fatalf("no date= in ffmpeg args: %v", a)
+	if dateVal != base.Format(layoutDash) {
+		t.Fatalf("cmd2 date= = %q, want %q", dateVal, base.Format(layoutDash))
 	}
-	if _, e := time.Parse(layoutDash, dateVal); e != nil {
-		t.Fatalf("ffmpeg date= has offset or bad format: %q (%v)", dateVal, e)
+	tmp := a[len(a)-1]
+	if filepath.Dir(tmp) != filepath.Dir(file) || !strings.HasSuffix(tmp, ".avi") {
+		t.Fatalf("cmd2 tmp path = %q", tmp)
 	}
-	if !strings.HasSuffix(outPath, ".avi") {
-		t.Fatalf("ffmpeg output not .avi: %q", outPath)
+	// 3: mv tmp file
+	if cmds[2][0] != "mv" || cmds[2][1] != tmp || cmds[2][2] != file {
+		t.Fatalf("cmd3 = %v", cmds[2])
 	}
-	if filepath.Dir(outPath) != dir {
-		t.Fatalf("temp file not in same dir: %q (dir %s)", outPath, dir)
+	// 4: exiftool fs dates again
+	if cmds[3][0] != exif || !strings.HasPrefix(cmds[3][2], "-FileModifyDate=") {
+		t.Fatalf("cmd4 = %v", cmds[3])
 	}
-	// Call 3: exiftool fs dates again
-	if !strings.HasPrefix(log[2][2], "-FileModifyDate=") {
-		t.Fatalf("call3 not fs dates: %v", log[2])
-	}
-	if !strings.Contains(buf.String(), "CHANGED  SL740083.AVI") {
-		t.Fatalf("report missing CHANGED:\n%s", buf.String())
+	if cmds[3][4] != file {
+		t.Fatalf("cmd4 file arg = %q", cmds[3][4])
 	}
 }
 
-func TestStubbedDryRunNoCalls(t *testing.T) {
-	logPath := stubEnv(t)
-	dir := t.TempDir()
-	p := writeFile(t, dir, "IMG_0001.JPG")
-	fi, _ := os.Stat(p)
-	mtime := fi.ModTime()
-	size := fi.Size()
-
-	buf := &bytes.Buffer{}
-	if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00", DryRun: true}, buf); err != nil {
-		t.Fatalf("run: %v", err)
+func TestTmpAVI(t *testing.T) {
+	p := tmpAVI("/some/dir/FILE.AVI")
+	if filepath.Dir(p) != "/some/dir" {
+		t.Fatalf("tmp not in same dir: %q", p)
 	}
-	if log := readStubLog(t, logPath); len(log) != 0 {
-		t.Fatalf("dry-run logged calls: %v", log)
-	}
-	fi2, _ := os.Stat(p)
-	if !fi2.ModTime().Equal(mtime) || fi2.Size() != size {
-		t.Fatalf("file mutated in dry-run")
-	}
-	if !strings.Contains(buf.String(), "CHANGED  IMG_0001.JPG") {
-		t.Fatalf("dry-run report missing plan:\n%s", buf.String())
-	}
-	if !strings.Contains(buf.String(), "dry-run=yes") {
-		t.Fatalf("report header missing dry-run=yes:\n%s", buf.String())
-	}
-	if !strings.Contains(buf.String(), "exiftool -overwrite_original -AllDates=") {
-		t.Fatalf("dry-run missing command preview:\n%s", buf.String())
+	if !strings.HasPrefix(filepath.Base(p), "mead-") || !strings.HasSuffix(p, ".avi") {
+		t.Fatalf("tmp name = %q", p)
 	}
 }
 
-func TestStubbedUnknownSkipped(t *testing.T) {
-	logPath := stubEnv(t)
-	dir := t.TempDir()
-	writeFile(t, dir, "README.txt")
+func TestPlanFile(t *testing.T) {
+	loc, _ := resolveTZ("-04:00")
+	base, _ := parseBaseTime("2026:08:03 09:00:00-04:00", loc)
+	exif := "/usr/bin/exiftool"
+	ff := "/usr/bin/ffmpeg"
 
-	buf := &bytes.Buffer{}
-	err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf)
-	if err != nil {
-		t.Fatalf("run with unknown should exit 0, got err: %v", err)
+	file := "/tmp/dir/F.JPG"
+	lines := planFile(exif, ff, fileTask{path: file, name: "F.JPG", cat: categoryPhoto}, base)
+	if len(lines) != 1 || lines[0] != cmdLine(photoCmd(exif, file, base)) {
+		t.Fatalf("photo plan = %v", lines)
 	}
-	if log := readStubLog(t, logPath); len(log) != 0 {
-		t.Fatalf("unknown triggered calls: %v", log)
-	}
-	if !strings.Contains(buf.String(), "UNKNOWN  README.txt") {
-		t.Fatalf("report missing UNKNOWN:\n%s", buf.String())
-	}
-}
 
-func TestStubbedPerFileErrorContinues(t *testing.T) {
-	logPath := stubEnv(t)
-	t.Setenv("MEAD_STUB_FAIL_FIRST", "1")
-	dir := t.TempDir()
-	writeFile(t, dir, "A.JPG")
-	writeFile(t, dir, "B.JPG")
-
-	buf := &bytes.Buffer{}
-	err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf)
-	if err == nil {
-		t.Fatalf("run with failure should error")
+	aviFile := "/tmp/dir/V.AVI"
+	want := aviCmds(exif, ff, aviFile, base)
+	lines = planFile(exif, ff, fileTask{path: aviFile, name: "V.AVI", cat: categoryVideoAVI}, base)
+	if len(lines) != len(want) {
+		t.Fatalf("avi plan len = %d, want %d", len(lines), len(want))
 	}
-	log := readStubLog(t, logPath)
-	if len(log) < 2 {
-		t.Fatalf("want >=2 attempted calls, got %d: %v", len(log), log)
-	}
-	if !strings.Contains(buf.String(), "ERROR") {
-		t.Fatalf("report missing ERROR:\n%s", buf.String())
-	}
-	aAttempted := false
-	bAttempted := false
-	for _, args := range log {
-		if len(args) > 0 && strings.HasSuffix(args[len(args)-1], "A.JPG") {
-			aAttempted = true
-		}
-		if len(args) > 0 && strings.HasSuffix(args[len(args)-1], "B.JPG") {
-			bAttempted = true
+	for i := range want {
+		if lines[i] != cmdLine(want[i]) {
+			t.Fatalf("avi plan[%d] = %q, want %q", i, lines[i], cmdLine(want[i]))
 		}
 	}
-	if !aAttempted || !bAttempted {
-		t.Fatalf("not all files attempted: A=%v B=%v", aAttempted, bAttempted)
+
+	if got := planFile(exif, ff, fileTask{path: "/tmp/dir/X", name: "X", cat: categoryNone}, base); got != nil {
+		t.Fatalf("none plan = %v, want nil", got)
 	}
 }
 
-func TestStubbedNoSupportedFiles(t *testing.T) {
-	stubEnv(t)
+func TestCmdLine(t *testing.T) {
+	if got := cmdLine([]string{"exiftool", "-overwrite_original", "a b"}); got != "exiftool -overwrite_original a b" {
+		t.Fatalf("cmdLine = %q", got)
+	}
+}
+
+func TestNoSupportedFiles(t *testing.T) {
+	requireTools(t)
 	dir := t.TempDir()
 	buf := &bytes.Buffer{}
 	if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf); err != nil {
@@ -694,85 +637,33 @@ func TestStubbedNoSupportedFiles(t *testing.T) {
 	}
 }
 
-func TestStubbedToolsOnPath(t *testing.T) {
-	t.Run("exiftool_from_path", func(t *testing.T) {
-		logPath := stubEnv(t)
-		dir := t.TempDir()
-		writeFile(t, dir, "IMG_0001.JPG")
-		buf := &bytes.Buffer{}
-		if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf); err != nil {
-			t.Fatalf("run: %v", err)
-		}
-		log := readStubLog(t, logPath)
-		if len(log) != 1 {
-			t.Fatalf("want 1 call, got %d: %v", len(log), log)
-		}
-		if !strings.HasSuffix(log[0][0], string(os.PathSeparator)+"stubs"+string(os.PathSeparator)+"exiftool") {
-			t.Fatalf("argv0 = %q, want stub on PATH", log[0][0])
-		}
-	})
-
-	t.Run("ffmpeg_from_path", func(t *testing.T) {
-		logPath := stubEnv(t)
-		dir := t.TempDir()
-		writeFile(t, dir, "X.AVI")
-		buf := &bytes.Buffer{}
-		if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf); err != nil {
-			t.Fatalf("run: %v", err)
-		}
-		log := readStubLog(t, logPath)
-		var ffmpegCall []string
-		for _, c := range log {
-			if len(c) > 0 && strings.HasSuffix(c[0], "ffmpeg") {
-				ffmpegCall = c
-				break
-			}
-		}
-		if ffmpegCall == nil {
-			t.Fatalf("no ffmpeg call in log: %v", log)
-		}
-		if !strings.HasSuffix(ffmpegCall[0], string(os.PathSeparator)+"stubs"+string(os.PathSeparator)+"ffmpeg") {
-			t.Fatalf("ffmpeg argv0 = %q, want stub on PATH", ffmpegCall[0])
-		}
-	})
-}
-
 func TestReportSummaryLine(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		files   []string
-		fail    bool
-		changed int
-		unknown int
-		errored int
-	}{
-		{"changed_and_unknown", []string{"A.JPG", "README.txt"}, false, 1, 1, 0},
-		{"errors", []string{"A.JPG"}, true, 0, 0, 1},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			stubEnv(t)
-			if tc.fail {
-				t.Setenv("MEAD_STUB_FAIL", "1")
-			}
-			dir := t.TempDir()
-			for _, f := range tc.files {
-				writeFile(t, dir, f)
-			}
-			buf := &bytes.Buffer{}
-			err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf)
-			if tc.errored > 0 && err == nil {
-				t.Fatalf("expected error, got nil")
-			}
-			if tc.errored == 0 && err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			want := fmt.Sprintf("  %d changed · 0 skipped · %d unknown · %d errors\n",
-				tc.changed, tc.unknown, tc.errored)
-			if !strings.Contains(buf.String(), want) {
-				t.Fatalf("summary line wrong:\n%s\nwant %q", buf.String(), want)
-			}
-		})
-	}
+	t.Run("changed_and_unknown", func(t *testing.T) {
+		dir := t.TempDir()
+		corpusPhoto(t, dir, "A.JPG")
+		writeFile(t, dir, "README.txt", "hello")
+		buf := &bytes.Buffer{}
+		if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := "  1 changed · 0 skipped · 1 unknown · 0 errors\n"
+		if !strings.Contains(buf.String(), want) {
+			t.Fatalf("summary line wrong:\n%s\nwant %q", buf.String(), want)
+		}
+	})
+
+	t.Run("errors", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "BROKEN.JPG", "not an image")
+		buf := &bytes.Buffer{}
+		if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf); err == nil {
+			t.Fatalf("expected error, got nil")
+		}
+		want := "  0 changed · 0 skipped · 0 unknown · 1 errors\n"
+		if !strings.Contains(buf.String(), want) {
+			t.Fatalf("summary line wrong:\n%s\nwant %q", buf.String(), want)
+		}
+	})
 }
 
 func TestParseBaseTime(t *testing.T) {
@@ -883,21 +774,21 @@ func TestClassifyExt(t *testing.T) {
 		want Category
 		ok   bool
 	}{
-		{"IMG_0001.JPG", catPhoto, true},
-		{"photo.jpeg", catPhoto, true},
-		{"x.png", catPhoto, true},
-		{"x.heic", catPhoto, true},
-		{"x.TIFF", catPhoto, true},
-		{"x.gif", catPhoto, true},
-		{"vid.mp4", catVideoModern, true},
-		{"v.MOV", catVideoModern, true},
-		{"v.m4v", catVideoModern, true},
-		{"SL740083.AVI", catVideoAVI, true},
-		{"x.avi", catVideoAVI, true},
-		{"README.TXT", catNone, false},
-		{".DS_Store", catNone, false},
-		{"noext", catNone, false},
-		{"x.raw", catNone, false},
+		{"IMG_0001.JPG", categoryPhoto, true},
+		{"photo.jpeg", categoryPhoto, true},
+		{"x.png", categoryPhoto, true},
+		{"x.heic", categoryPhoto, true},
+		{"x.TIFF", categoryPhoto, true},
+		{"x.gif", categoryPhoto, true},
+		{"vid.mp4", categoryVideoModern, true},
+		{"v.MOV", categoryVideoModern, true},
+		{"v.m4v", categoryVideoModern, true},
+		{"SL740083.AVI", categoryVideoAVI, true},
+		{"x.avi", categoryVideoAVI, true},
+		{"README.TXT", categoryNone, false},
+		{".DS_Store", categoryNone, false},
+		{"noext", categoryNone, false},
+		{"x.raw", categoryNone, false},
 	} {
 		got, ok := classifyExt(tc.in)
 		if got != tc.want || ok != tc.ok {
@@ -929,64 +820,76 @@ func TestLocalTZName(t *testing.T) {
 	})
 }
 
-// Stub convention (documented):
-// testdata/stubs/{exiftool,ffmpeg} honor:
-//   MEAD_STUB_LOG          - file path; each call appends one line of NUL-separated argv
-//                            (argv0 then args), terminated by a newline. Version probes
-//                            (-ver / -version) print a fake version and are NOT logged.
-//   MEAD_STUB_FAIL         - if set, every stub call exits 1 (after logging).
-//   MEAD_STUB_FAIL_FIRST   - if set, only the first stub call (globally) exits 1.
-//   MEAD_STUB_EXIFTOOL_FAIL / MEAD_STUB_FFMPEG_FAIL - per-tool variants of _FAIL.
-
-func readStubLog(t *testing.T, p string) [][]string {
+func requireTools(t *testing.T) {
 	t.Helper()
-	data, err := os.ReadFile(p)
+	if _, err := exec.LookPath("exiftool"); err != nil {
+		t.Fatalf("mead: missing required dependency: exiftool\ninstall with:  brew install exiftool ffmpeg")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Fatalf("mead: missing required dependency: ffmpeg\ninstall with:  brew install exiftool ffmpeg")
+	}
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Fatalf("mead: missing required dependency: ffprobe\ninstall with:  brew install exiftool ffmpeg")
+	}
+}
+
+func corpusMedia(t *testing.T, match func(Category) bool) (srcDir, name string) {
+	t.Helper()
+	src := corpusSrc(t)
+	shoots, err := os.ReadDir(src)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
+		t.Fatalf("read corpus: %v", err)
+	}
+	for _, s := range shoots {
+		if !s.IsDir() {
+			continue
 		}
-		t.Fatalf("read stub log: %v", err)
-	}
-	data = bytes.TrimRight(data, "\n")
-	if len(data) == 0 {
-		return nil
-	}
-	lines := strings.Split(string(data), "\n")
-	out := make([][]string, 0, len(lines))
-	for _, l := range lines {
-		parts := strings.Split(l, "\x00")
-		clean := parts[:0]
-		for _, p := range parts {
-			if p != "" {
-				clean = append(clean, p)
+		entries, err := os.ReadDir(filepath.Join(src, s.Name()))
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+				continue
+			}
+			if cat, ok := classifyExt(e.Name()); ok && match(cat) {
+				return filepath.Join(src, s.Name()), e.Name()
 			}
 		}
-		out = append(out, clean)
 	}
-	return out
+	t.Fatalf("no matching media file in corpus %s", src)
+	return "", ""
 }
 
-func stubEnv(t *testing.T) (logPath string) {
+func corpusPhoto(t *testing.T, dir, name string) string {
 	t.Helper()
-	stubsDir, err := filepath.Abs("testdata/stubs")
-	if err != nil {
-		t.Fatalf("abs stubs: %v", err)
-	}
-	t.Setenv("PATH", stubsDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	f, err := os.CreateTemp("", "mead-stub-log-*")
-	if err != nil {
-		t.Fatalf("temp stub log: %v", err)
-	}
-	logPath = f.Name()
-	f.Close()
-	t.Setenv("MEAD_STUB_LOG", logPath)
-	return logPath
+	srcDir, srcName := corpusMedia(t, func(c Category) bool { return c == categoryPhoto })
+	dst := filepath.Join(dir, name)
+	copyFile(t, filepath.Join(srcDir, srcName), dst)
+	return dst
 }
 
-func writeFile(t *testing.T, dir, name string) string {
+func copyFile(t *testing.T, src, dst string) {
+	t.Helper()
+	in, err := os.Open(src)
+	if err != nil {
+		t.Fatalf("open %s: %v", src, err)
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		t.Fatalf("create %s: %v", dst, err)
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		t.Fatalf("copy to %s: %v", dst, err)
+	}
+}
+
+func writeFile(t *testing.T, dir, name, content string) string {
 	t.Helper()
 	p := filepath.Join(dir, name)
-	if err := os.WriteFile(p, []byte("stub"), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
 	return p
