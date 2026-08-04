@@ -91,10 +91,7 @@ func TestMead_Corpus(t *testing.T) {
 		t.Skip("no avi-only shoot in corpus")
 	}
 	t.Run("dry_run_no_mutation", func(t *testing.T) {
-		loc, _ := resolveTZ("-04:00")
-		_ = loc
 		for _, s := range shoots {
-			s := s
 			t.Run(s.name, func(t *testing.T) {
 				tmp := copyShootToTmp(t, s)
 				type snap struct {
@@ -268,7 +265,6 @@ func TestMead_Corpus(t *testing.T) {
 			if used[s.name] {
 				continue
 			}
-			s := s
 			t.Run(s.name, func(t *testing.T) {
 				tmp := copyShootToTmp(t, s)
 				buf := &bytes.Buffer{}
@@ -479,10 +475,10 @@ func probeDuration(file string) (string, error) {
 }
 
 func parseExifTime(s string, loc *time.Location) (time.Time, error) {
-	if t, e := time.Parse("2006:01:02 15:04:05-07:00", s); e == nil {
+	if t, e := time.Parse(layoutColonOffset, s); e == nil {
 		return t, nil
 	}
-	return time.ParseInLocation("2006:01:02 15:04:05", s, loc)
+	return time.ParseInLocation(layoutColon, s, loc)
 }
 
 func TestStubbedPhotoArgs(t *testing.T) {
@@ -513,7 +509,7 @@ func TestStubbedPhotoArgs(t *testing.T) {
 		t.Fatalf("arg2 = %q", args[2])
 	}
 	ts := strings.TrimPrefix(args[2], "-AllDates=")
-	if _, e := time.Parse("2006:01:02 15:04:05-07:00", ts); e != nil {
+	if _, e := time.Parse(layoutColonOffset, ts); e != nil {
 		t.Fatalf("AllDates value %q not offset-timestamp: %v", ts, e)
 	}
 	if args[3] != filepath.Join(dir, "IMG_0001.JPG") {
@@ -584,7 +580,7 @@ func TestStubbedAVIArgs(t *testing.T) {
 	if dateVal == "" {
 		t.Fatalf("no date= in ffmpeg args: %v", a)
 	}
-	if _, e := time.Parse("2006-01-02 15:04:05", dateVal); e != nil {
+	if _, e := time.Parse(layoutDash, dateVal); e != nil {
 		t.Fatalf("ffmpeg date= has offset or bad format: %q (%v)", dateVal, e)
 	}
 	if !strings.HasSuffix(outPath, ".avi") {
@@ -636,7 +632,6 @@ func TestStubbedUnknownSkipped(t *testing.T) {
 	logPath := stubEnv(t)
 	dir := t.TempDir()
 	writeFile(t, dir, "README.txt")
-	p := filepath.Join(dir, "README.txt")
 
 	buf := &bytes.Buffer{}
 	err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00"}, buf)
@@ -649,7 +644,6 @@ func TestStubbedUnknownSkipped(t *testing.T) {
 	if !strings.Contains(buf.String(), "UNKNOWN  README.txt") {
 		t.Fatalf("report missing UNKNOWN:\n%s", buf.String())
 	}
-	_ = p
 }
 
 func TestStubbedPerFileErrorContinues(t *testing.T) {
@@ -777,7 +771,7 @@ func TestReportSummaryLine(t *testing.T) {
 		{"errors", []string{"A.JPG"}, true, 0, 0, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			logPath := stubEnv(t)
+			stubEnv(t)
 			if tc.fail {
 				t.Setenv("MEAD_STUB_FAIL", "1")
 			}
@@ -798,7 +792,6 @@ func TestReportSummaryLine(t *testing.T) {
 			if !strings.Contains(buf.String(), want) {
 				t.Fatalf("summary line wrong:\n%s\nwant %q", buf.String(), want)
 			}
-			_ = logPath
 		})
 	}
 }
