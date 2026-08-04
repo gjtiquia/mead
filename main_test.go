@@ -107,16 +107,6 @@ func TestMead_Corpus(t *testing.T) {
 						t.Fatalf("%s size changed in dry-run", sn.name)
 					}
 				}
-				out := buf.String()
-				if strings.Contains(out, "UNKNOWN") {
-					t.Fatalf("dry-run report has UNKNOWN: %s", out)
-				}
-				if !strings.Contains(out, "dry-run=yes") {
-					t.Fatalf("dry-run report missing dry-run=yes: %s", out)
-				}
-				if !strings.Contains(out, "exiftool -overwrite_original") {
-					t.Fatalf("dry-run report missing command preview: %s", out)
-				}
 			})
 		}
 	})

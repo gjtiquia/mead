@@ -167,9 +167,6 @@ func run(opts Options, stdout io.Writer) error {
 
 	seq := sequence(base, len(known), opts.Inc)
 
-	fmt.Fprintf(stdout, "mead — %s\n", opts.Dir)
-	fmt.Fprintf(stdout, "  base %s · inc %ds · N=%d files · dry-run=%s\n",
-		base.Format(layoutHeader), opts.Inc, len(known), yn(opts.DryRun))
 	if opts.DryRun {
 		for i, ft := range known {
 			for _, c := range planFile(etool, ftool, ft, seq[i]) {
@@ -196,7 +193,7 @@ func run(opts Options, stdout io.Writer) error {
 			errored++
 			continue
 		}
-		fmt.Fprintf(stdout, "  CHANGED  %s  %s  (%s)\n", ft.name, t.Format(layoutDash), desc(ft.cat))
+		fmt.Fprintf(stdout, "  CHANGED  %s  %s \n", ft.name, t.Format(layoutDash))
 		changed++
 	}
 	for _, u := range unknown {
@@ -386,25 +383,6 @@ func planFile(exif, ffmpeg string, ft fileTask, t time.Time) []string {
 }
 
 func cmdLine(argv []string) string { return strings.Join(argv, " ") }
-
-func desc(cat Category) string {
-	switch cat {
-	case categoryPhoto:
-		return "DateTimeOriginal"
-	case categoryVideoModern:
-		return "AllDates"
-	case categoryVideoAVI:
-		return "fs + ICRD"
-	}
-	return ""
-}
-
-func yn(b bool) string {
-	if b {
-		return "yes"
-	}
-	return "no"
-}
 
 func localTZName() string {
 	if tz := os.Getenv("TZ"); tz != "" {
