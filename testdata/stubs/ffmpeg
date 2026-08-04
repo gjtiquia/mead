@@ -1,0 +1,19 @@
+#!/bin/sh
+: "${MEAD_STUB_LOG:?}"
+case "$1" in
+  -ver|-version) echo "stub-ffmpeg-1.0"; exit 0 ;;
+esac
+printf '%s\0' "$0" "$@" >>"$MEAD_STUB_LOG"
+printf '\n' >>"$MEAD_STUB_LOG"
+if [ -n "$MEAD_STUB_FAIL_FIRST" ]; then
+  flag="${MEAD_STUB_LOG}.failed"
+  if [ ! -f "$flag" ]; then
+    : >"$flag"
+    exit 1
+  fi
+fi
+if [ -n "$MEAD_STUB_FFMPEG_FAIL" ] || [ -n "$MEAD_STUB_FAIL" ]; then exit 1; fi
+last=""
+for a in "$@"; do last="$a"; done
+[ -n "$last" ] && : >"$last" 2>/dev/null
+exit 0
