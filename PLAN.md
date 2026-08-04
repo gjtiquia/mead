@@ -47,7 +47,7 @@ Provide `mead`, a Go CLI that:
 
 - **Location:** `/Users/gjtiquia/Documents/self/mead` (exists, empty).
 - **Module:** `go.mod` with `module mead`, `go 1.25`.
-- **Layout (v1):** single `main.go`. Refactor into `cmd/` + `internal/` only when it grows.
+- **Layout (v1):** single `main.go` + `main_test.go`. Refactor into `cmd/` + `internal/` only when it grows.
 - **Build/install:** `go install .` → binary `mead` at `~/go/bin/mead`
   (`GOPATH=~/go`, `~/go/bin` confirmed on `$PATH`). No shell-out dependency on the Go side.
 - **Stdlib only:** `flag`, `os/exec`, `os`, `path/filepath`, `sort`, `time`,
@@ -205,8 +205,9 @@ touches nothing (no exiftool write, no ffmpeg rewrite, no mtime change).
 7. Writers (§8) — exiftool and ffmpeg subprocess calls (arg slices, captured stderr, `ExitError`).
 8. Report + `--dry-run` (§11, §12).
 9. Interactive prompts (§11).
-10. `go vet ./...`, `gofmt`, `go build ./...`.
-11. `go install .` → confirm `mead` on PATH.
+10. Write `main_test.go`: corpus-copy helper (§15.5) + per-shoot subtests.
+11. `go vet ./...`, `gofmt`, `go build ./...`, `go test ./...`.
+12. `go install .` → confirm `mead` on PATH.
 
 ## 15. Testing / verification
 
@@ -219,9 +220,64 @@ touches nothing (no exiftool write, no ffmpeg rewrite, no mtime change).
   2. `mead --dry-run` → confirm table matches expectations, nothing changed.
   3. Run for real on the copies → verify with
      `exiftool -s -DateTimeOriginal -FileModifyDate -FileCreateDate -DateCreated <file>`
-     and `stat -f "%Sm %SB"`.
-  4. Confirm AVI still plays / duration unchanged (`ffprobe -show_entries format=duration`).
-  5. Run `mead` on the real `0900-apple` folder in dry-run first, then real.
+   and `stat -f "%Sm %SB"`.
+   4. Confirm AVI still plays / duration unchanged (`ffprobe -show_entries format=duration`).
+   5. Run `mead` on the real `0900-apple` folder in dry-run first, then real.
+
+### 15.5 Real-corpus integration test (Go, `t.TempDir()`)
+
+Path: `main_test.go` (skipped when the source corpus is absent).
+
+Fixture setup (runs once per `Test*` via a `sync.Once`-guarded helper):
+1. Resolve source: `filepath.Join("..", "..", "2026-08-montreal-import")`
+   (relative to the test binary's CWD = the `mead` dir). If missing →
+   `t.Skip("montreal corpus not present at <path>")` (corpus lives outside
+   the repo, so laptops without it don't fail).
+2. Create fresh tmp dir with `t.TempDir()` (auto-cleaned).
+3. Recursive copy **preserving the tree**:
+   ```
+   filepath.WalkDir(src, func(p, d, err) error:
+     rel := strings.TrimPrefix(p, src)
+     dst := filepath.Join(tmp, rel)
+     if d.IsDir() { os.MkdirAll(dst, 0o755); return nil }
+     ext := strings.ToLower(filepath.Ext(p))
+     if ext in {jpg, jpeg, png, heic, tif, tiff, gif, mp4, m4v, mov, avi}:
+       io.Copy(open(dst, CREATE|TRUNC), open(p, READ))
+   ```
+   Only whitelisted media is copied — READMEs, `.DS_Store`, junk are dropped.
+   Real file bytes (not stubs) — exercises actual exiftool/ffmpeg.
+
+Test cases (each sub-`t.Run` walks its own tmp copy):
+
+- `TestMead_Corpus`: top-level `Test*` that builds the fixture then runs subtests:
+  - `dry-run no mutation`: for each shoot subfolder under tmp
+    (`0900-apple`, `1400-pete-meat`, `1500-tnt`, `1700-bnb`), snapshot every
+    file's mtime + size *before*, run `mead <subdir> <base> --dry-run`, assert
+    mtimes + sizes unchanged, assert report lists all whitelisted files in
+    filename order with no UNKNOWN.
+  - `real-run avi-only (0900-apple)`: run
+    `mead 0900-apple "2026:08:03 09:00:00-04:00"`, then probe with
+    `exiftool -s -FileModifyDate -FileCreateDate -DateCreated` and
+    `ffprobe -show_entries format=duration`:
+    - FileModifyDate == FileCreateDate == 09:00:0i for the i-th AVI
+    - duration unchanged vs a pre-captured value (known sample).
+  - `real-run mixed (1400-pete-meat)`: run on the mixed folder, verify the AVI
+    side (fs dates + ICRD) and JPG side (`DateTimeOriginal` via exiftool) track
+    the same sequence, regardless of extension.
+  - `real-run remaining (1500-tnt, 1700-bnb)`: smoke runs asserting exit 0 and
+    sequence ordering across each shoot.
+  - `unknown extension`: drop a `README.txt` into a copied subfolder, expect it
+    in the report's UNKNOWN section and untouched on disk.
+
+Helpers (pure, unit-tested separately): whitelist classification,
+`base_time` parsing, sequencing arithmetic — no tmp dir needed.
+
+Guardrails:
+- Test depends on real `exiftool`/`ffmpeg` on PATH; skip with the same message
+  as PLAN §6 if `exec.LookPath` fails.
+- Never writes to the real `../2026-08-montreal-import` — all mutations in tmp.
+- One `t.TempDir()` per top-level `Test*`; mutating subtests use their own
+  fresh copy rather than sharing the read-only fixture.
 
 ## 16. Risks / known limitations
 
