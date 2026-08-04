@@ -1,5 +1,7 @@
 # mead
 
+> mead as in [med]ia
+
 Fix media capture times so files appear in chronological order in Google Photos.
 
 Camera files have unreliable embedded datetimes. `mead` sequences every file in a
