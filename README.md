@@ -28,11 +28,17 @@ First file gets `base_time` exactly; each next file gets `base_time + i·inc` se
 
 ### Flags
 
+Flags may appear anywhere on the command line (before or after `dir`/`base_time`),
+and accept either `--flag value` or `--flag=value`.
+
 | Flag | Default | Meaning |
 |---|---|---|
 | `--inc N` | `1` | seconds added per file in sequence |
 | `--tz TZ` | device local | IANA name (`America/Montreal`) or fixed offset (`-04:00`) |
 | `--dry-run` | `false` | print the plan + commands, write nothing |
+| `-h`, `--help` | | show usage |
+
+Long flags are double-dash only: use `--dry-run`, not `-dry-run`.
 
 ### Examples
 

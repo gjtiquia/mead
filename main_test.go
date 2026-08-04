@@ -51,6 +51,12 @@ func TestRunMainExitCodes(t *testing.T) {
 		{"bad_inc", []string{dir, goodBase, "--inc", "-1"}, withStubs, 2},
 		{"bad_tz", []string{dir, goodBase, "--tz", "Bogus/Zone"}, withStubs, 2},
 		{"missing_dir", []string{missingDir, goodBase}, basePATH, 2},
+		{"flags_after_positionals", []string{dir, goodBase, "--dry-run"}, withStubs, 0},
+		{"flag_between_positionals", []string{dir, "--inc", "30", goodBase}, withStubs, 0},
+		{"flag_equals_form", []string{dir, goodBase, "--inc=30"}, withStubs, 0},
+		{"double_dash_separator", []string{"--", dir, goodBase}, withStubs, 0},
+		{"unknown_flag", []string{dir, goodBase, "--bogus"}, withStubs, 2},
+		{"single_dash_long_flag", []string{dir, goodBase, "-dry-run"}, withStubs, 2},
 		{"passing", []string{dir, goodBase}, withStubs, 0},
 	}
 	for _, tc := range tests {

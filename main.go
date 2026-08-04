@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/pflag"
 )
 
 func main() {
@@ -19,14 +20,13 @@ func main() {
 }
 
 func runMain(args []string) int {
-	fs := flag.NewFlagSet("mead", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("mead", pflag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() { usage(os.Stderr) }
 	inc := fs.Int("inc", 1, "seconds added per file in sequence")
 	tz := fs.String("tz", "", "IANA name or fixed offset")
 	dryRun := fs.Bool("dry-run", false, "preview without writing")
-	help := fs.Bool("h", false, "show usage")
-	fs.BoolVar(help, "help", false, "show usage")
+	help := fs.BoolP("help", "h", false, "show usage")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
