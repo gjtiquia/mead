@@ -21,13 +21,14 @@ const (
 	layoutColon       = "2006:01:02 15:04:05"
 	layoutDashOffset  = "2006-01-02 15:04:05-07:00"
 	layoutDash        = "2006-01-02 15:04:05"
-	layoutHeader      = "2006-01-02 15:04:05 -0700"
 )
 
-var (
-	errUsage = errors.New("usage error")
-	errFatal = errors.New("fatal error")
-)
+type usageError struct{ err error }
+
+func (e *usageError) Error() string { return e.err.Error() }
+func (e *usageError) Unwrap() error { return e.err }
+
+var errFatal = errors.New("fatal error")
 
 func main() {
 	os.Exit(runMain(os.Args[1:]))
@@ -80,13 +81,17 @@ func runMain(args []string) int {
 	}
 
 	if err := run(opts, os.Stdout); err != nil {
-		if !errors.Is(err, errUsage) && !errors.Is(err, errFatal) {
+		var ue *usageError
+		switch {
+		case errors.As(err, &ue):
 			fmt.Fprintf(os.Stderr, "mead: %v\n", err)
-		}
-		if errors.Is(err, errUsage) {
 			return 2
+		case errors.Is(err, errFatal):
+			return 1
+		default:
+			fmt.Fprintf(os.Stderr, "mead: %v\n", err)
+			return 1
 		}
-		return 1
 	}
 	return 0
 }
@@ -126,14 +131,14 @@ func run(opts Options, stdout io.Writer) error {
 
 	loc, err := resolveTZ(opts.TZ)
 	if err != nil {
-		return fmt.Errorf("%w: %v", errUsage, err)
+		return &usageError{err}
 	}
 	base, err := parseBaseTime(opts.BaseTime, loc)
 	if err != nil {
-		return fmt.Errorf("%w: %v", errUsage, err)
+		return &usageError{err}
 	}
 	if opts.Inc < 0 {
-		return fmt.Errorf("%w: --inc must be >= 0", errUsage)
+		return &usageError{errors.New("--inc must be >= 0")}
 	}
 
 	entries, err := os.ReadDir(opts.Dir)
@@ -165,28 +170,22 @@ func run(opts Options, stdout io.Writer) error {
 		return nil
 	}
 
-	seq := sequence(base, len(known), opts.Inc)
-
-	if opts.DryRun {
-		for i, ft := range known {
-			for _, c := range planFile(etool, ftool, ft, seq[i]) {
-				fmt.Fprintf(stdout, "  $ %s\n", c)
-			}
-		}
-		fmt.Fprintln(stdout)
-	}
-
 	changed, errored := 0, 0
 	for i, ft := range known {
-		t := seq[i]
-		var ferr error
-		if !opts.DryRun {
-			switch ft.cat {
-			case categoryPhoto, categoryVideoModern:
-				ferr = writePhotoModern(etool, ft.path, t)
-			case categoryVideoAVI:
-				ferr = writeAVI(etool, ftool, ft.path, t)
+		t := base.Add(time.Duration(i*opts.Inc) * time.Second)
+		if opts.DryRun {
+			for _, c := range planFile(etool, ftool, ft, t) {
+				fmt.Fprintf(stdout, "  $ %s\n", c)
 			}
+			continue
+		}
+		var ferr error
+		switch ft.cat {
+		case categoryPhoto, categoryVideoModern:
+			argv := photoCmd(etool, ft.path, t)
+			_, ferr = runCmd(argv[0], argv[1:])
+		case categoryVideoAVI:
+			ferr = writeAVI(etool, ftool, ft.path, t)
 		}
 		if ferr != nil {
 			fmt.Fprintf(stdout, "  ERROR    %s  %v\n", ft.name, ferr)
@@ -272,16 +271,11 @@ func resolveTZ(s string) (*time.Location, error) {
 	}
 	if s[0] == '+' || s[0] == '-' {
 		rest := strings.ReplaceAll(s[1:], ":", "")
-		if len(rest) != 4 {
+		n, err := strconv.Atoi(rest)
+		if len(rest) != 4 || err != nil || n < 0 {
 			return nil, fmt.Errorf("bad --tz offset %q", s)
 		}
-		for _, r := range rest {
-			if r < '0' || r > '9' {
-				return nil, fmt.Errorf("bad --tz offset %q", s)
-			}
-		}
-		h, _ := strconv.Atoi(rest[:2])
-		m, _ := strconv.Atoi(rest[2:])
+		h, m := n/100, n%100
 		if h > 23 || m > 59 {
 			return nil, fmt.Errorf("bad --tz offset %q", s)
 		}
@@ -303,25 +297,12 @@ func parseBaseTime(s string, loc *time.Location) (time.Time, error) {
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty base_time")
 	}
-	for _, l := range []string{layoutColonOffset, layoutDashOffset} {
-		if t, err := time.Parse(l, s); err == nil {
-			return t, nil
-		}
-	}
-	for _, l := range []string{layoutColon, layoutDash} {
+	for _, l := range []string{layoutColonOffset, layoutDashOffset, layoutColon, layoutDash} {
 		if t, err := time.ParseInLocation(l, s, loc); err == nil {
 			return t, nil
 		}
 	}
 	return time.Time{}, fmt.Errorf("bad base_time %q (use 'YYYY:MM:DD HH:MM:SS[±HH:MM]' or 'YYYY-MM-DD HH:MM:SS')", s)
-}
-
-func sequence(base time.Time, n, inc int) []time.Time {
-	seq := make([]time.Time, n)
-	for i := 0; i < n; i++ {
-		seq[i] = base.Add(time.Duration(i*inc) * time.Second)
-	}
-	return seq
 }
 
 func classifyExt(name string) (Category, bool) {
@@ -350,12 +331,6 @@ func aviCmds(exif, ffmpeg, file string, t time.Time) [][]string {
 		{"mv", tmp, file},
 		{exif, "-overwrite_original", "-FileModifyDate=" + ts, "-FileCreateDate=" + ts, file},
 	}
-}
-
-func writePhotoModern(exif, file string, t time.Time) error {
-	argv := photoCmd(exif, file, t)
-	_, err := runCmd(argv[0], argv[1:])
-	return err
 }
 
 func writeAVI(exif, ffmpeg, file string, t time.Time) error {

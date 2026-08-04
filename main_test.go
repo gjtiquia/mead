@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -617,6 +618,31 @@ func TestNoSupportedFiles(t *testing.T) {
 	}
 }
 
+func TestUsageErrorReturned(t *testing.T) {
+	buf := &bytes.Buffer{}
+	err := run(Options{Dir: ".", TZ: "Bogus/Zone"}, buf)
+	var ue *usageError
+	if !errors.As(err, &ue) {
+		t.Fatalf("run with bad tz err = %v, want *usageError", err)
+	}
+}
+
+func TestDryRunOutputNoChanged(t *testing.T) {
+	dir := t.TempDir()
+	corpusPhoto(t, dir, "A.JPG")
+	buf := &bytes.Buffer{}
+	if err := run(Options{Dir: dir, BaseTime: "2026:08:03 09:00:00-04:00", DryRun: true}, buf); err != nil {
+		t.Fatalf("dry-run err: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "exiftool") || !strings.Contains(out, "$ ") {
+		t.Fatalf("dry-run missing plan lines:\n%s", out)
+	}
+	if strings.Contains(out, "CHANGED") {
+		t.Fatalf("dry-run reported CHANGED:\n%s", out)
+	}
+}
+
 func TestReportSummaryLine(t *testing.T) {
 	t.Run("changed_and_unknown", func(t *testing.T) {
 		dir := t.TempDir()
@@ -721,30 +747,6 @@ func TestResolveTZ(t *testing.T) {
 	}
 	if _, err := resolveTZ("-99:00"); err == nil {
 		t.Fatalf("out-of-range offset gave no error")
-	}
-}
-
-func TestSequence(t *testing.T) {
-	loc, _ := time.LoadLocation("America/Montreal")
-	base := time.Date(2026, 8, 3, 9, 0, 0, 0, loc)
-	for _, tc := range []struct{ n, inc int }{
-		{0, 1}, {1, 1}, {5, 1}, {3, 60}, {4, 30},
-	} {
-		seq := sequence(base, tc.n, tc.inc)
-		if len(seq) != tc.n {
-			t.Fatalf("n=%d inc=%d: len=%d", tc.n, tc.inc, len(seq))
-		}
-		if tc.n == 0 {
-			continue
-		}
-		if !seq[0].Equal(base) {
-			t.Fatalf("first != base: %v", seq[0])
-		}
-		for i := 1; i < tc.n; i++ {
-			if got := seq[i].Sub(seq[0]); got != time.Duration(i*tc.inc)*time.Second {
-				t.Fatalf("n=%d inc=%d i=%d gap=%v want=%v", tc.n, tc.inc, i, got, time.Duration(i*tc.inc)*time.Second)
-			}
-		}
 	}
 }
 
