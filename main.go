@@ -165,19 +165,11 @@ func run(opts Options, stdout io.Writer) error {
 		return nil
 	}
 
-	etVer, _ := runCmd(etool, []string{"-ver"})
-	ftVer, _ := runCmd(ftool, []string{"-version"})
-	etVerS := strings.TrimSpace(string(etVer))
-	ftVerS := strings.TrimSpace(strings.SplitN(strings.TrimSpace(string(ftVer)), "\n", 2)[0])
-
 	seq := sequence(base, len(known), opts.Inc)
 
 	fmt.Fprintf(stdout, "mead — %s\n", opts.Dir)
 	fmt.Fprintf(stdout, "  base %s · inc %ds · N=%d files · dry-run=%s\n",
 		base.Format(layoutHeader), opts.Inc, len(known), yn(opts.DryRun))
-	if etVerS != "" || ftVerS != "" {
-		fmt.Fprintf(stdout, "  exiftool %s · ffmpeg %s\n", etVerS, ftVerS)
-	}
 	if opts.DryRun {
 		for i, ft := range known {
 			for _, c := range planFile(etool, ftool, ft, seq[i]) {
