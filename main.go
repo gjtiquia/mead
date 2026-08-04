@@ -36,16 +36,23 @@ func main() {
 func runMain(args []string) int {
 	fs := pflag.NewFlagSet("mead", pflag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	fs.Usage = func() { usage(os.Stderr) }
+	fs.Usage = func() {
+		w := fs.Output()
+		fmt.Fprintln(w, "mead — media date-fixer")
+		fmt.Fprintln(w, "usage: mead <dir> <base_time> [flags]")
+		fmt.Fprintln(w, "       mead   (interactive prompts)")
+		fs.PrintDefaults()
+	}
 	inc := fs.Int("inc", 1, "seconds added per file in sequence")
-	tz := fs.String("tz", "", "IANA name or fixed offset")
+	tz := fs.String("tz", "", "IANA name or fixed offset, e.g. America/Montreal or -04:00 (default device local)")
 	dryRun := fs.Bool("dry-run", false, "preview without writing")
 	help := fs.BoolP("help", "h", false, "show usage")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *help {
-		usage(os.Stdout)
+		fs.SetOutput(os.Stdout)
+		fs.Usage()
 		return 0
 	}
 
@@ -80,16 +87,6 @@ func runMain(args []string) int {
 		return 1
 	}
 	return 0
-}
-
-func usage(w io.Writer) {
-	fmt.Fprintln(w, "mead — media date-fixer")
-	fmt.Fprintln(w, "usage: mead <dir> <base_time> [flags]")
-	fmt.Fprintln(w, "       mead   (interactive prompts)")
-	fmt.Fprintln(w, "flags:")
-	fmt.Fprintln(w, "  --inc N     seconds per file in sequence (default 1)")
-	fmt.Fprintln(w, "  --tz TZ     IANA name or fixed offset, e.g. America/Montreal or -04:00 (default device local)")
-	fmt.Fprintln(w, "  --dry-run   preview without writing")
 }
 
 type Options struct {
