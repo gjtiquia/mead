@@ -570,16 +570,6 @@ func TestAVICmds(t *testing.T) {
 	}
 }
 
-func TestTmpAVI(t *testing.T) {
-	p := tmpAVI("/some/dir/FILE.AVI")
-	if filepath.Dir(p) != "/some/dir" {
-		t.Fatalf("tmp not in same dir: %q", p)
-	}
-	if !strings.HasPrefix(filepath.Base(p), "mead-") || !strings.HasSuffix(p, ".avi") {
-		t.Fatalf("tmp name = %q", p)
-	}
-}
-
 func TestPlanFile(t *testing.T) {
 	loc, _ := resolveTZ("-04:00")
 	base, _ := parseBaseTime("2026:08:03 09:00:00-04:00", loc)
@@ -785,29 +775,6 @@ func TestClassifyExt(t *testing.T) {
 			t.Fatalf("classifyExt(%q) = (%v,%v), want (%v,%v)", tc.in, got, ok, tc.want, tc.ok)
 		}
 	}
-}
-
-func TestLocalTZName(t *testing.T) {
-	t.Run("env_tz", func(t *testing.T) {
-		t.Setenv("TZ", "America/Toronto")
-		if got := localTZName(); got != "America/Toronto" {
-			t.Fatalf("env TZ: got %q, want America/Toronto", got)
-		}
-	})
-	t.Run("env_tz_invalid_falls_through", func(t *testing.T) {
-		t.Setenv("TZ", "Bogus/Zone")
-		got := localTZName()
-		if got == "" {
-			t.Fatalf("localTZName returned empty for invalid TZ")
-		}
-	})
-	t.Run("no_env_nonempty_no_panic", func(t *testing.T) {
-		t.Setenv("TZ", "")
-		got := localTZName()
-		if got == "" {
-			t.Fatalf("localTZName returned empty")
-		}
-	})
 }
 
 func requireTools(t *testing.T) {

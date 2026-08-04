@@ -234,7 +234,13 @@ func promptInteractive(opts *Options) error {
 	} else {
 		opts.Inc = 1
 	}
-	tz, _ := prompt(sc, "timezone", localTZName())
+	_, off := time.Now().Zone()
+	sign := "+"
+	if off < 0 {
+		sign = "-"
+		off = -off
+	}
+	tz, _ := prompt(sc, "timezone", fmt.Sprintf("%s%02d%02d", sign, off/3600, off%3600/60))
 	opts.TZ = tz
 	dr, _ := prompt(sc, "dry-run? [y/N]", "N")
 	opts.DryRun = strings.HasPrefix(strings.ToLower(dr), "y")
@@ -337,17 +343,13 @@ func photoCmd(exif, file string, t time.Time) []string {
 func aviCmds(exif, ffmpeg, file string, t time.Time) [][]string {
 	ts := t.Format(layoutColonOffset)
 	wall := t.Format(layoutDash)
-	tmp := tmpAVI(file)
+	tmp := filepath.Join(filepath.Dir(file), fmt.Sprintf("mead-%d.avi", os.Getpid()))
 	return [][]string{
 		{exif, "-overwrite_original", "-FileModifyDate=" + ts, "-FileCreateDate=" + ts, file},
 		{ffmpeg, "-y", "-i", file, "-c", "copy", "-metadata", "date=" + wall, tmp},
 		{"mv", tmp, file},
 		{exif, "-overwrite_original", "-FileModifyDate=" + ts, "-FileCreateDate=" + ts, file},
 	}
-}
-
-func tmpAVI(file string) string {
-	return filepath.Join(filepath.Dir(file), fmt.Sprintf("mead-%d.avi", os.Getpid()))
 }
 
 func writePhotoModern(exif, file string, t time.Time) error {
@@ -383,22 +385,6 @@ func planFile(exif, ffmpeg string, ft fileTask, t time.Time) []string {
 }
 
 func cmdLine(argv []string) string { return strings.Join(argv, " ") }
-
-func localTZName() string {
-	if tz := os.Getenv("TZ"); tz != "" {
-		if _, err := time.LoadLocation(tz); err == nil {
-			return tz
-		}
-	}
-	if link, err := os.Readlink("/etc/localtime"); err == nil {
-		for _, pref := range []string{"/var/db/timezone/zoneinfo/", "/usr/share/zoneinfo/"} {
-			if strings.HasPrefix(link, pref) {
-				return strings.TrimPrefix(link, pref)
-			}
-		}
-	}
-	return "Local"
-}
 
 func runCmd(name string, args []string) ([]byte, error) {
 	out, err := exec.Command(name, args...).CombinedOutput()
