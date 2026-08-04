@@ -115,11 +115,11 @@ type fileTask struct {
 }
 
 func run(opts Options, stdout io.Writer) error {
-	etool, err := resolveTool("exiftool", "EXIFTOOL_PATH")
+	etool, err := exec.LookPath("exiftool")
 	if err != nil {
 		return fmt.Errorf("missing required dependency: exiftool\ninstall with:  brew install exiftool ffmpeg")
 	}
-	ftool, err := resolveTool("ffmpeg", "FFMPEG_PATH")
+	ftool, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return fmt.Errorf("missing required dependency: ffmpeg\ninstall with:  brew install exiftool ffmpeg")
 	}
@@ -266,15 +266,6 @@ func prompt(sc *bufio.Scanner, label, def string) (string, bool) {
 		return def, true
 	}
 	return line, true
-}
-
-func resolveTool(name, envOverride string) (string, error) {
-	if p := os.Getenv(envOverride); p != "" {
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
-			return p, nil
-		}
-	}
-	return exec.LookPath(name)
 }
 
 func resolveTZ(s string) (*time.Location, error) {

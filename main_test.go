@@ -694,24 +694,9 @@ func TestStubbedNoSupportedFiles(t *testing.T) {
 	}
 }
 
-func TestStubbedEnvOverrides(t *testing.T) {
-	stubsDir, err := filepath.Abs("testdata/stubs")
-	if err != nil {
-		t.Fatalf("abs stubs: %v", err)
-	}
-	exiftoolStub := filepath.Join(stubsDir, "exiftool")
-	ffmpegStub := filepath.Join(stubsDir, "ffmpeg")
-
-	t.Run("exiftool_override", func(t *testing.T) {
-		t.Setenv("EXIFTOOL_PATH", exiftoolStub)
-		t.Setenv("FFMPEG_PATH", ffmpegStub)
-		f, err := os.CreateTemp("", "mead-stub-log-*")
-		if err != nil {
-			t.Fatalf("temp log: %v", err)
-		}
-		logPath := f.Name()
-		f.Close()
-		t.Setenv("MEAD_STUB_LOG", logPath)
+func TestStubbedToolsOnPath(t *testing.T) {
+	t.Run("exiftool_from_path", func(t *testing.T) {
+		logPath := stubEnv(t)
 		dir := t.TempDir()
 		writeFile(t, dir, "IMG_0001.JPG")
 		buf := &bytes.Buffer{}
@@ -722,21 +707,13 @@ func TestStubbedEnvOverrides(t *testing.T) {
 		if len(log) != 1 {
 			t.Fatalf("want 1 call, got %d: %v", len(log), log)
 		}
-		if log[0][0] != exiftoolStub {
-			t.Fatalf("argv0 = %q, want %q (EXIFTOOL_PATH not used)", log[0][0], exiftoolStub)
+		if !strings.HasSuffix(log[0][0], string(os.PathSeparator)+"stubs"+string(os.PathSeparator)+"exiftool") {
+			t.Fatalf("argv0 = %q, want stub on PATH", log[0][0])
 		}
 	})
 
-	t.Run("ffmpeg_override", func(t *testing.T) {
-		t.Setenv("EXIFTOOL_PATH", exiftoolStub)
-		t.Setenv("FFMPEG_PATH", ffmpegStub)
-		f, err := os.CreateTemp("", "mead-stub-log-*")
-		if err != nil {
-			t.Fatalf("temp log: %v", err)
-		}
-		logPath := f.Name()
-		f.Close()
-		t.Setenv("MEAD_STUB_LOG", logPath)
+	t.Run("ffmpeg_from_path", func(t *testing.T) {
+		logPath := stubEnv(t)
 		dir := t.TempDir()
 		writeFile(t, dir, "X.AVI")
 		buf := &bytes.Buffer{}
@@ -754,8 +731,8 @@ func TestStubbedEnvOverrides(t *testing.T) {
 		if ffmpegCall == nil {
 			t.Fatalf("no ffmpeg call in log: %v", log)
 		}
-		if ffmpegCall[0] != ffmpegStub {
-			t.Fatalf("ffmpeg argv0 = %q, want %q (FFMPEG_PATH not used)", ffmpegCall[0], ffmpegStub)
+		if !strings.HasSuffix(ffmpegCall[0], string(os.PathSeparator)+"stubs"+string(os.PathSeparator)+"ffmpeg") {
+			t.Fatalf("ffmpeg argv0 = %q, want stub on PATH", ffmpegCall[0])
 		}
 	})
 }
