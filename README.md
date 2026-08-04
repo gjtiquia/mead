@@ -63,3 +63,19 @@ mead --inc 30 ~/shoots/1700-bnb "2026-08-03 17:00:00"
 Exit codes: `0` ok (warnings allowed) · `1` runtime error · `2` usage error.
 
 **Writes are irreversible** (`-overwrite_original`). Use `--dry-run` first.
+
+## ai-usage disclosure
+
+(inspired by [ghostty's ai usage policy](https://github.com/ghostty-org/ghostty/blob/main/AI_POLICY.md))
+
+ai is heavily used for generating code in this project
+
+other than the obvious utility of the project, other things that im exploring while "vibecoding" out this project
+- the usability of Deepseek v4 Flash (0731) via Opencode Go as a "daily driver" model
+- Opencode built-in subagents capabilities
+    - ie. this prompt: go ahead with the plan. use subagents to implement, another subagent to review, loop till done. you, the main agent is just an orchestrator agent.
+- Golang's capabilities for building quick CLI tools
+    - whats included out of the box (stdlib)
+    - whats idiomatic Go and best practices
+
+
