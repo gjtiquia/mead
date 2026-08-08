@@ -326,6 +326,8 @@ func exifCmd(exif, file string, t time.Time, embedded bool) []string {
 }
 
 func aviCmds(exif, ffmpeg, file string, t time.Time) [][]string {
+	// exiftool can't write RIFF/AVI containers, so ffmpeg embeds the ICRD
+	// (embedded capture date) first; exiftool then sets the filesystem dates.
 	wall := t.Format(layoutDash)
 	tmp := filepath.Join(filepath.Dir(file), fmt.Sprintf("mead-%d.avi", os.Getpid()))
 	return [][]string{
