@@ -34,6 +34,11 @@ Operates on the current folder by default; pass an optional `dir` to target anot
 folder without `cd`-ing. First file gets `base_time` exactly; each next file gets
 `base_time + i·inc` seconds.
 
+In interactive mode the `base_time` prompt pre-fills your last value (edit in place).
+`↑`/`↓` scroll history (bash-style; `↓` past the newest leaves an empty line), `←`/`→`
+move the cursor, `Ctrl-C` aborts. History is stored at
+`~/.local/state/mead/history` (or `$XDG_STATE_HOME/mead/history`).
+
 ### Flags
 
 Flags may appear anywhere on the command line (before or after `dir`/`base_time`),

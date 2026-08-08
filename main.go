@@ -210,8 +210,13 @@ func run(opts Options, stdout io.Writer) error {
 
 func promptInteractive(opts *Options) error {
 	sc := bufio.NewScanner(os.Stdin)
+	hist := loadHistForPrompt()
+	def := ""
+	if len(hist) > 0 {
+		def = hist[len(hist)-1]
+	}
 	for {
-		b, ok := prompt(sc, "base_time", "")
+		b, ok := promptBaseTime(sc, "base_time", def, hist)
 		if !ok {
 			return fmt.Errorf("aborted")
 		}
@@ -225,6 +230,7 @@ func promptInteractive(opts *Options) error {
 			continue
 		}
 		opts.BaseTime = b
+		saveHistForPrompt(b)
 		break
 	}
 	s, _ := prompt(sc, "seconds per file", "1")
