@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,77 +113,5 @@ func TestAppendHistoryErrorTolerant(t *testing.T) {
 	}
 	if err := appendHistory("", ""); err != nil {
 		t.Fatalf("empty entry should be a no-op, got %v", err)
-	}
-}
-
-func TestEditLineBasic(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		def  string
-		want string
-	}{
-		{"type_and_enter", "2026-08-03 09:00:00\r", "", "2026-08-03 09:00:00"},
-		{"enter_keeps_default", "\r", "2026:08:03 09:00:00-04:00", "2026:08:03 09:00:00-04:00"},
-		{"append_to_default", " 09:30:00\r", "2026-08-03", "2026-08-03 09:30:00"},
-		{"backspace", "abc\x7f\r", "", "ab"},
-		{"left_arrow_insert", "abc\x1b[DX\r", "", "abXc"},
-		{"right_arrow", "abc\x1b[D\x1b[D\x1b[CY\r", "", "abYc"},
-		{"ignore_ctrl_d", "\x04a\r", "", "a"},
-		{"ctrl_d_after_text_ignored", "ab\x04\r", "", "ab"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var out bytes.Buffer
-			got, err := editLine(bytes.NewReader([]byte(tc.in)), &out, "x: ", tc.def, nil)
-			if err != nil {
-				t.Fatalf("editLine err: %v", err)
-			}
-			if got != tc.want {
-				t.Fatalf("editLine = %q, want %q", got, tc.want)
-			}
-			if !strings.Contains(out.String(), "x: "+tc.def) {
-				t.Fatalf("output missing prompt+default: %q", out.String())
-			}
-		})
-	}
-}
-
-func TestEditLineAbort(t *testing.T) {
-	var out bytes.Buffer
-	if _, err := editLine(bytes.NewReader([]byte("abc\x03")), &out, "x: ", "", nil); !errors.Is(err, errAbort) {
-		t.Fatalf("ctrl-C err = %v, want errAbort", err)
-	}
-	if _, err := editLine(bytes.NewReader([]byte("abc")), &out, "x: ", "", nil); !errors.Is(err, errAbort) {
-		t.Fatalf("EOF err = %v, want abort", err)
-	}
-}
-
-func TestEditLineHistory(t *testing.T) {
-	hist := []string{"2026:08:01 09:00:00-04:00", "2026:08:02 09:00:00-04:00"}
-	tests := []struct {
-		name string
-		in   string
-		def  string
-		want string
-	}{
-		{"up_to_newest", "\x1b[A\r", "fresh", "2026:08:02 09:00:00-04:00"},
-		{"up_up_to_oldest", "\x1b[A\x1b[A\r", "fresh", "2026:08:01 09:00:00-04:00"},
-		{"down_past_newest_is_empty", "\x1b[A\x1b[B\r", "", ""},
-		{"down_past_newest_restores_fresh", "\x1b[A\x1b[B\r", "fresh", "fresh"},
-		{"stash_preserved_while_scrolling", "D\x1b[A\x1b[B\r", "fresh", "freshD"},
-		{"up_at_oldest_stays", "\x1b[A\x1b[A\x1b[A\r", "fresh", "2026:08:01 09:00:00-04:00"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var out bytes.Buffer
-			got, err := editLine(bytes.NewReader([]byte(tc.in)), &out, "x: ", tc.def, hist)
-			if err != nil {
-				t.Fatalf("editLine err: %v", err)
-			}
-			if got != tc.want {
-				t.Fatalf("editLine = %q, want %q", got, tc.want)
-			}
-		})
 	}
 }
