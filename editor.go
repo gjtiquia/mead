@@ -82,7 +82,7 @@ func (e *editor) redraw() {
 }
 
 func (e *editor) clear() {
-	fmt.Fprintf(e.w, "\r\x1b[2K%s%s\n", e.prompt, string(e.buf))
+	fmt.Fprintf(e.w, "\r\x1b[2K%s%s\r\n", e.prompt, string(e.buf))
 }
 
 func (e *editor) insert(ru rune) {
@@ -170,7 +170,7 @@ func promptBaseTime(sc *bufio.Scanner, label, def string, history []string) (str
 	if !term.IsTerminal(fd) {
 		return prompt(sc, label, def)
 	}
-	s, err := promptTTY(fd, os.Stdin, os.Stderr, label, def, history)
+	s, err := promptTTY(fd, os.Stdin, os.Stderr, label+": ", def, history)
 	if err != nil {
 		return "", false
 	}

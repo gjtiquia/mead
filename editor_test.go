@@ -154,7 +154,7 @@ func TestEditLineRedraw(t *testing.T) {
 		t.Fatalf("editLine = %q, want aXb", got)
 	}
 	o := out.String()
-	if !strings.Contains(o, "\r\x1b[2Kp: aXb\n") {
+	if !strings.Contains(o, "\r\x1b[2Kp: aXb\r\n") {
 		t.Fatalf("missing final clear line: %q", o)
 	}
 	if !strings.Contains(o, "\x1b[1D") {
@@ -168,7 +168,7 @@ func TestEditLineRedraw(t *testing.T) {
 		t.Fatalf("editLine = %q, want def", got)
 	}
 	o = out.String()
-	if !strings.Contains(o, "\r\x1b[2Kp: def\n") {
+	if !strings.Contains(o, "\r\x1b[2Kp: def\r\n") {
 		t.Fatalf("missing default clear line: %q", o)
 	}
 }
