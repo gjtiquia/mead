@@ -11,7 +11,7 @@ media type:
 - **Photos** (JPG/PNG/HEIC/TIFF/GIF) and **modern video** (MP4/MOV/M4V) → embedded
   EXIF date via `exiftool`, plus the filesystem creation date so macOS Finder's
   "Created" (Get Info) shows the capture time
-- **Legacy AVI** → filesystem dates + embedded ICRD via `ffmpeg` (stream copy, no re-encode)
+- **Legacy AVI** → filesystem creation date + embedded ICRD via `ffmpeg` (stream copy, no re-encode)
 
 Requires `exiftool` and `ffmpeg` on `PATH` (`brew install exiftool ffmpeg`). Writing the
 filesystem creation date also needs `setfile` (ships with Xcode Command Line Tools,

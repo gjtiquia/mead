@@ -143,25 +143,19 @@ func TestMead_Corpus(t *testing.T) {
 		}
 		for i, n := range avis {
 			p := filepath.Join(tmp, n)
-			fields, err := probeField(p, "FileModifyDate", "FileCreateDate", "DateCreated")
+			fields, err := probeField(p, "FileCreateDate", "DateCreated")
 			if err != nil {
 				t.Fatalf("probe %s: %v", n, err)
 			}
 			want := base.Add(time.Duration(i*inc) * time.Second)
-			if v, ok := fields["FileModifyDate"]; !ok {
-				t.Fatalf("%s: no FileModifyDate", n)
+			if v, ok := fields["FileCreateDate"]; !ok {
+				t.Fatalf("%s: no FileCreateDate", n)
 			} else {
 				got, e := parseExifTime(v, loc)
 				if e != nil {
-					t.Fatalf("%s: parse FileModifyDate %q: %v", n, v, e)
+					t.Fatalf("%s: parse FileCreateDate %q: %v", n, v, e)
 				}
 				if !got.Equal(want) {
-					t.Fatalf("%s FileModifyDate = %v, want %v", n, got, want)
-				}
-			}
-			if v, ok := fields["FileCreateDate"]; ok {
-				got, e := parseExifTime(v, loc)
-				if e == nil && !got.Equal(want) {
 					t.Fatalf("%s FileCreateDate = %v, want %v", n, got, want)
 				}
 			}
@@ -211,11 +205,11 @@ func TestMead_Corpus(t *testing.T) {
 			var got time.Time
 			switch cat {
 			case categoryVideoAVI:
-				f, err := probeField(p, "FileModifyDate")
+				f, err := probeField(p, "FileCreateDate")
 				if err != nil {
 					t.Fatalf("probe %s: %v", n, err)
 				}
-				got, _ = parseExifTime(f["FileModifyDate"], loc)
+				got, _ = parseExifTime(f["FileCreateDate"], loc)
 			case categoryPhoto:
 				f, err := probeField(p, "DateTimeOriginal")
 				if err != nil {
@@ -265,8 +259,8 @@ func TestMead_Corpus(t *testing.T) {
 					var got time.Time
 					switch cat {
 					case categoryVideoAVI:
-						f, _ := probeField(p, "FileModifyDate")
-						got, _ = parseExifTime(f["FileModifyDate"], loc)
+						f, _ := probeField(p, "FileCreateDate")
+						got, _ = parseExifTime(f["FileCreateDate"], loc)
 					case categoryPhoto:
 						f, _ := probeField(p, "DateTimeOriginal")
 						got, _ = parseExifTime(f["DateTimeOriginal"], loc)
@@ -488,7 +482,7 @@ func parseExifTime(s string, loc *time.Location) (time.Time, error) {
 	return time.ParseInLocation(layoutColon, s, loc)
 }
 
-func TestPhotoCmd(t *testing.T) {
+func TestExifCmd(t *testing.T) {
 	loc, _ := resolveTZ("-04:00")
 	base, _ := parseBaseTime("2026:08:03 09:00:00-04:00", loc)
 	for _, tc := range []struct {
@@ -500,7 +494,7 @@ func TestPhotoCmd(t *testing.T) {
 		{"mov", "VID_0001.mov"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			argv := photoCmd("/usr/bin/exiftool", "/tmp/dir/"+tc.ext, base)
+			argv := exifCmd("/usr/bin/exiftool", "/tmp/dir/"+tc.ext, base, true)
 			if len(argv) != 5 {
 				t.Fatalf("argv len = %d, want 5: %v", len(argv), argv)
 			}
@@ -521,6 +515,18 @@ func TestPhotoCmd(t *testing.T) {
 			}
 		})
 	}
+	t.Run("embedded_false", func(t *testing.T) {
+		argv := exifCmd("/usr/bin/exiftool", "/tmp/dir/V.AVI", base, false)
+		if len(argv) != 4 {
+			t.Fatalf("argv len = %d, want 4: %v", len(argv), argv)
+		}
+		if argv[2] != "-FileCreateDate="+base.Format(layoutColonOffset) {
+			t.Fatalf("argv2 = %q", argv[2])
+		}
+		if argv[3] != "/tmp/dir/V.AVI" {
+			t.Fatalf("argv3 = %q", argv[3])
+		}
+	})
 }
 
 func TestAVICmds(t *testing.T) {
@@ -530,23 +536,16 @@ func TestAVICmds(t *testing.T) {
 	ff := "/usr/bin/ffmpeg"
 	file := "/tmp/dir/SL740083.AVI"
 	cmds := aviCmds(exif, ff, file, base)
-	if len(cmds) != 4 {
-		t.Fatalf("want 4 commands, got %d", len(cmds))
+	if len(cmds) != 3 {
+		t.Fatalf("want 3 commands, got %d", len(cmds))
 	}
-	// 1: exiftool fs dates
-	if cmds[0][0] != exif || !strings.HasPrefix(cmds[0][2], "-FileModifyDate=") || !strings.HasPrefix(cmds[0][3], "-FileCreateDate=") {
-		t.Fatalf("cmd1 = %v", cmds[0])
-	}
-	if cmds[0][4] != file {
-		t.Fatalf("cmd1 file arg = %q", cmds[0][4])
-	}
-	// 2: ffmpeg -y -i file -c copy -metadata date=<wall> tmp
-	a := cmds[1]
+	// 1: ffmpeg -y -i file -c copy -metadata date=<wall> tmp
+	a := cmds[0]
 	if a[0] != ff {
-		t.Fatalf("cmd2 argv0 = %v", a)
+		t.Fatalf("cmd1 argv0 = %v", a)
 	}
 	if !strings.Contains(strings.Join(a, " "), "-c copy") {
-		t.Fatalf("cmd2 not stream copy: %v", a)
+		t.Fatalf("cmd1 not stream copy: %v", a)
 	}
 	var dateVal string
 	for i := 0; i < len(a); i++ {
@@ -555,22 +554,33 @@ func TestAVICmds(t *testing.T) {
 		}
 	}
 	if dateVal != base.Format(layoutDash) {
-		t.Fatalf("cmd2 date= = %q, want %q", dateVal, base.Format(layoutDash))
+		t.Fatalf("cmd1 date= = %q, want %q", dateVal, base.Format(layoutDash))
 	}
 	tmp := a[len(a)-1]
 	if filepath.Dir(tmp) != filepath.Dir(file) || !strings.HasSuffix(tmp, ".avi") {
-		t.Fatalf("cmd2 tmp path = %q", tmp)
+		t.Fatalf("cmd1 tmp path = %q", tmp)
 	}
-	// 3: mv tmp file
-	if cmds[2][0] != "mv" || cmds[2][1] != tmp || cmds[2][2] != file {
-		t.Fatalf("cmd3 = %v", cmds[2])
+	// 2: mv tmp file
+	if cmds[1][0] != "mv" || cmds[1][1] != tmp || cmds[1][2] != file {
+		t.Fatalf("cmd2 = %v", cmds[1])
 	}
-	// 4: exiftool fs dates again
-	if cmds[3][0] != exif || !strings.HasPrefix(cmds[3][2], "-FileModifyDate=") {
-		t.Fatalf("cmd4 = %v", cmds[3])
+	// 3: shared exif command (same as photos), embedded dates skipped for AVI
+	want := exifCmd(exif, file, base, false)
+	got3 := cmds[2]
+	if len(got3) != len(want) {
+		t.Fatalf("cmd3 len = %d, want %d: %v", len(got3), len(want), got3)
 	}
-	if cmds[3][4] != file {
-		t.Fatalf("cmd4 file arg = %q", cmds[3][4])
+	for i := range want {
+		if got3[i] != want[i] {
+			t.Fatalf("cmd3[%d] = %q, want %q", i, got3[i], want[i])
+		}
+	}
+	for _, c := range cmds {
+		for _, arg := range c {
+			if strings.HasPrefix(arg, "-FileModifyDate=") {
+				t.Fatalf("unexpected FileModifyDate arg: %v", c)
+			}
+		}
 	}
 }
 
@@ -582,7 +592,7 @@ func TestPlanFile(t *testing.T) {
 
 	file := "/tmp/dir/F.JPG"
 	lines := planFile(exif, ff, fileTask{path: file, name: "F.JPG", cat: categoryPhoto}, base)
-	if len(lines) != 1 || lines[0] != cmdLine(photoCmd(exif, file, base)) {
+	if len(lines) != 1 || lines[0] != cmdLine(exifCmd(exif, file, base, true)) {
 		t.Fatalf("photo plan = %v", lines)
 	}
 

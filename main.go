@@ -182,7 +182,7 @@ func run(opts Options, stdout io.Writer) error {
 		var ferr error
 		switch ft.cat {
 		case categoryPhoto, categoryVideoModern:
-			argv := photoCmd(etool, ft.path, t)
+			argv := exifCmd(etool, ft.path, t, true)
 			_, ferr = runCmd(argv[0], argv[1:])
 		case categoryVideoAVI:
 			ferr = writeAVI(etool, ftool, ft.path, t)
@@ -317,26 +317,28 @@ func classifyExt(name string) (Category, bool) {
 	return categoryNone, false
 }
 
-func photoCmd(exif, file string, t time.Time) []string {
-	return []string{exif, "-overwrite_original", "-AllDates=" + t.Format(layoutColonOffset), "-FileCreateDate=" + t.Format(layoutColonOffset), file}
+func exifCmd(exif, file string, t time.Time, embedded bool) []string {
+	ts := t.Format(layoutColonOffset)
+	if embedded {
+		return []string{exif, "-overwrite_original", "-AllDates=" + ts, "-FileCreateDate=" + ts, file}
+	}
+	return []string{exif, "-overwrite_original", "-FileCreateDate=" + ts, file}
 }
 
 func aviCmds(exif, ffmpeg, file string, t time.Time) [][]string {
-	ts := t.Format(layoutColonOffset)
 	wall := t.Format(layoutDash)
 	tmp := filepath.Join(filepath.Dir(file), fmt.Sprintf("mead-%d.avi", os.Getpid()))
 	return [][]string{
-		{exif, "-overwrite_original", "-FileModifyDate=" + ts, "-FileCreateDate=" + ts, file},
 		{ffmpeg, "-y", "-i", file, "-c", "copy", "-metadata", "date=" + wall, tmp},
 		{"mv", tmp, file},
-		{exif, "-overwrite_original", "-FileModifyDate=" + ts, "-FileCreateDate=" + ts, file},
+		exifCmd(exif, file, t, false),
 	}
 }
 
 func writeAVI(exif, ffmpeg, file string, t time.Time) error {
 	for i, argv := range aviCmds(exif, ffmpeg, file, t) {
 		if _, err := runCmd(argv[0], argv[1:]); err != nil {
-			if i == 1 {
+			if i == 0 {
 				os.Remove(argv[len(argv)-1])
 			}
 			return err
@@ -348,7 +350,7 @@ func writeAVI(exif, ffmpeg, file string, t time.Time) error {
 func planFile(exif, ffmpeg string, ft fileTask, t time.Time) []string {
 	switch ft.cat {
 	case categoryPhoto, categoryVideoModern:
-		return []string{cmdLine(photoCmd(exif, ft.path, t))}
+		return []string{cmdLine(exifCmd(exif, ft.path, t, true))}
 	case categoryVideoAVI:
 		var cmds []string
 		for _, argv := range aviCmds(exif, ffmpeg, ft.path, t) {
