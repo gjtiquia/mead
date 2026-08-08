@@ -35,9 +35,9 @@ folder without `cd`-ing. First file gets `base_time` exactly; each next file get
 `base_time + i·inc` seconds.
 
 In interactive mode the `base_time` prompt pre-fills your last value (edit in place).
-`↑`/`↓` scroll history (bash-style; `↓` past the newest leaves an empty line), `←`/`→`
-move the cursor, `Ctrl-C` aborts. History is stored at
-`~/.local/state/mead/history` (or `$XDG_STATE_HOME/mead/history`).
+`↑`/`↓` scroll history (bash-style); the latest history is shown by default and `↓`
+from there clears the line. `←`/`→` move the cursor, `Ctrl-C` aborts. History is
+stored at `~/.local/state/mead/history` (or `$XDG_STATE_HOME/mead/history`).
 
 ### Flags
 

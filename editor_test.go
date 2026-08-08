@@ -61,12 +61,15 @@ func TestEditLineHistory(t *testing.T) {
 		def  string
 		want string
 	}{
-		{"up_to_newest", "\x1b[A\r", "fresh", "2026:08:02 09:00:00-04:00"},
-		{"up_up_to_oldest", "\x1b[A\x1b[A\r", "fresh", "2026:08:01 09:00:00-04:00"},
-		{"down_past_newest_is_empty", "\x1b[A\x1b[B\r", "", ""},
-		{"down_past_newest_restores_fresh", "\x1b[A\x1b[B\r", "fresh", "fresh"},
-		{"stash_preserved_while_scrolling", "D\x1b[A\x1b[B\r", "fresh", "freshD"},
-		{"up_at_oldest_stays", "\x1b[A\x1b[A\x1b[A\r", "fresh", "2026:08:01 09:00:00-04:00"},
+		{"default_shows_latest", "\r", "", "2026:08:02 09:00:00-04:00"},
+		{"up_to_previous", "\x1b[A\r", "", "2026:08:01 09:00:00-04:00"},
+		{"up_at_oldest_stays", "\x1b[A\x1b[A\r", "", "2026:08:01 09:00:00-04:00"},
+		{"down_at_latest_clears", "\x1b[B\r", "", ""},
+		{"down_twice_stays_cleared", "\x1b[B\x1b[B\r", "", ""},
+		{"down_then_up_restores_latest", "\x1b[B\x1b[A\r", "", "2026:08:02 09:00:00-04:00"},
+		{"up_down_returns_to_latest", "\x1b[A\x1b[B\r", "", "2026:08:02 09:00:00-04:00"},
+		{"full_cycle_ends_cleared", "\x1b[A\x1b[A\x1b[B\x1b[B\r", "", ""},
+		{"fresh_edit_stashed_across_scroll", "\x1b[BX\x1b[A\x1b[B\r", "", "X"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -128,7 +131,7 @@ func TestEditLineHistoryEdges(t *testing.T) {
 	}{
 		{"empty_history_up", "\x1b[A\r", "def", nil, "def"},
 		{"empty_history_down", "\x1b[B\r", "def", nil, "def"},
-		{"down_at_fresh_noop", "\x1b[B\r", "def", []string{"a", "b"}, "def"},
+		{"down_at_cleared_fresh_stays_empty", "\x1b[B\x1b[B\r", "def", []string{"a", "b"}, ""},
 		{"recalled_entry_edits_discarded", "X\x1b[A\x1b[A\x1b[B\r", "c", []string{"a", "b"}, "b"},
 		{"utf8_history_entry", "\x1b[A\r", "def", []string{"hél"}, "hél"},
 	}

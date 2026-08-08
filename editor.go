@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"unicode/utf8"
 
 	"golang.org/x/term"
 )
@@ -26,15 +25,21 @@ type editor struct {
 }
 
 func editLine(r io.Reader, w io.Writer, prompt, def string, history []string) (string, error) {
+	histIdx := len(history)
+	buf := []rune(def)
+	if len(history) > 0 {
+		histIdx = len(history) - 1
+		buf = []rune(history[histIdx])
+	}
 	e := &editor{
 		r:       bufio.NewReader(r),
 		w:       w,
 		prompt:  prompt,
 		history: history,
-		histIdx: len(history),
-		fresh:   def,
-		buf:     []rune(def),
-		cur:     utf8.RuneCountInString(def),
+		histIdx: histIdx,
+		fresh:   "",
+		buf:     buf,
+		cur:     len(buf),
 	}
 	e.redraw()
 	for {
