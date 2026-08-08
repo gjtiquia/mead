@@ -318,7 +318,7 @@ func classifyExt(name string) (Category, bool) {
 }
 
 func photoCmd(exif, file string, t time.Time) []string {
-	return []string{exif, "-overwrite_original", "-AllDates=" + t.Format(layoutColonOffset), file}
+	return []string{exif, "-overwrite_original", "-AllDates=" + t.Format(layoutColonOffset), "-FileCreateDate=" + t.Format(layoutColonOffset), file}
 }
 
 func aviCmds(exif, ffmpeg, file string, t time.Time) [][]string {

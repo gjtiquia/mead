@@ -501,8 +501,8 @@ func TestPhotoCmd(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			argv := photoCmd("/usr/bin/exiftool", "/tmp/dir/"+tc.ext, base)
-			if len(argv) != 4 {
-				t.Fatalf("argv len = %d, want 4: %v", len(argv), argv)
+			if len(argv) != 5 {
+				t.Fatalf("argv len = %d, want 5: %v", len(argv), argv)
 			}
 			if argv[0] != "/usr/bin/exiftool" {
 				t.Fatalf("argv0 = %q", argv[0])
@@ -513,8 +513,11 @@ func TestPhotoCmd(t *testing.T) {
 			if argv[2] != "-AllDates="+base.Format(layoutColonOffset) {
 				t.Fatalf("argv2 = %q", argv[2])
 			}
-			if argv[3] != "/tmp/dir/"+tc.ext {
+			if argv[3] != "-FileCreateDate="+base.Format(layoutColonOffset) {
 				t.Fatalf("argv3 = %q", argv[3])
+			}
+			if argv[4] != "/tmp/dir/"+tc.ext {
+				t.Fatalf("argv4 = %q", argv[4])
 			}
 		})
 	}
